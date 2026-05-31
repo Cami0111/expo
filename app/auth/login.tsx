@@ -2,18 +2,18 @@ import { useAuth } from '@/context/auth-context';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -76,7 +76,7 @@ export default function LoginScreen() {
             <View style={styles.fieldWrapper}>
               <TextInput
                 style={[styles.input, errors.username ? styles.inputError : null]}
-                placeholder="Correo electrónico"
+                placeholder="Usuario"
                 placeholderTextColor="rgba(255,255,255,0.45)"
                 autoCapitalize="none"
                 autoCorrect={false}
