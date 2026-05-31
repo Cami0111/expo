@@ -2,29 +2,26 @@ import { useAuth } from '@/context/auth-context';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 export default function RegisterScreen() {
   const { register } = useAuth();
 
-  const [email, setEmail]               = useState('');
   const [username, setUsername]         = useState('');
   const [password, setPassword]         = useState('');
   const [confirmPassword, setConfirm]   = useState('');
@@ -36,12 +33,11 @@ export default function RegisterScreen() {
 
   const validate = (): boolean => {
     const e: Record<string, string> = {};
-    if (!email.trim())                       e.email    = 'Campo requerido';
-    else if (!EMAIL_REGEX.test(email))       e.email    = 'Email inválido';
+    if (!username.trim())                    e.username = 'Campo requerido';
     if (!password)                           e.password = 'Campo requerido';
-    else if (password.length < 6)            e.password = 'Mínimo 6 caracteres';
-    if (password !== confirmPassword)        e.confirm  = 'Las contraseñas no coinciden';
-    if (!acceptTerms)                        e.terms    = 'Debes aceptar los términos';
+    else if (password.length < 6)            e.password = 'M\u00ednimo 6 caracteres';
+    if (password !== confirmPassword)        e.confirm  = 'Las contrase\u00f1as no coinciden';
+    if (!acceptTerms)                        e.terms    = 'Debes aceptar los t\u00e9rminos';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -50,16 +46,13 @@ export default function RegisterScreen() {
     if (!validate()) return;
     setLoading(true);
     try {
-      // username derivado del email (parte antes del @) si no se ingresa aparte
-      const derivedUsername = username.trim() || email.split('@')[0];
       await register({
-        username: derivedUsername,
-        email: email.trim().toLowerCase(),
+        username: username.trim(),
         password,
       });
       router.replace('/(tabs)');
     } catch (err: any) {
-      Alert.alert('Error al registrarse', err.message ?? 'Ocurrió un error inesperado');
+      Alert.alert('Error al registrarse', err.message ?? 'Ocurri\u00f3 un error inesperado');
     } finally {
       setLoading(false);
     }
@@ -87,23 +80,22 @@ export default function RegisterScreen() {
           <View style={styles.card}>
             <Text style={styles.title}>Registrarse</Text>
 
-            {/* Correo electrónico */}
+            {/* Usuario */}
             <View style={styles.fieldWrapper}>
               <TextInput
-                style={[styles.input, errors.email ? styles.inputError : null]}
-                placeholder="Correo electrónico"
+                style={[styles.input, errors.username ? styles.inputError : null]}
+                placeholder="Usuario"
                 placeholderTextColor="rgba(255,255,255,0.45)"
                 autoCapitalize="none"
                 autoCorrect={false}
-                keyboardType="email-address"
-                value={email}
-                onChangeText={t => { setEmail(t); clearError('email'); }}
+                value={username}
+                onChangeText={t => { setUsername(t); clearError('username'); }}
                 returnKeyType="next"
               />
-              {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
+              {errors.username ? <Text style={styles.errorText}>{errors.username}</Text> : null}
             </View>
 
-            {/* Contraseña */}
+            {/* Contrase\u00f1a */}
             <View style={styles.fieldWrapper}>
               <TextInput
                 style={[styles.input, errors.password ? styles.inputError : null]}
@@ -117,7 +109,7 @@ export default function RegisterScreen() {
               {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
             </View>
 
-            {/* Confirmar contraseña */}
+            {/* Confirmar contrase\u00f1a */}
             <View style={styles.fieldWrapper}>
               <TextInput
                 style={[styles.input, errors.confirm ? styles.inputError : null]}
@@ -132,7 +124,7 @@ export default function RegisterScreen() {
               {errors.confirm ? <Text style={styles.errorText}>{errors.confirm}</Text> : null}
             </View>
 
-            {/* Botón Registrarse */}
+            {/* Bot\u00f3n Registrarse */}
             <TouchableOpacity
               style={[styles.btnPrimary, loading && styles.btnDisabled]}
               onPress={handleRegister}
@@ -145,7 +137,7 @@ export default function RegisterScreen() {
               }
             </TouchableOpacity>
 
-            {/* Toggle términos */}
+            {/* Toggle t\u00e9rminos */}
             <View style={styles.toggleRow}>
               <Switch
                 value={acceptTerms}
@@ -163,12 +155,12 @@ export default function RegisterScreen() {
             <View style={styles.linkRow}>
               <Text style={styles.linkGray}>Ya tienes una cuenta ? </Text>
               <TouchableOpacity onPress={() => router.replace('/auth/login')}>
-                <Text style={styles.linkPurple}>Inicia Sesión</Text>
+                <Text style={styles.linkPurple}>Inicia Sesion</Text>
               </TouchableOpacity>
             </View>
 
             {/* Estrella */}
-            <Text style={styles.star}>★</Text>
+            <Text style={styles.star}> ★ </Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
