@@ -1,139 +1,332 @@
 import { useAuth } from '@/context/auth-context';
 import { Ionicons } from '@expo/vector-icons';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Dimensions,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const PURPLE = '#6C5CE7';
+// ─── Misma URL base que en auth-context ─────────────────────────────────────
+const API_BASE_URL = 'http://192.168.88.73:3000';
 
+// ─── Paleta fiel al diseño Figma ────────────────────────────────────────────
+const BG = '#1C0A3A';
+const SURFACE = '#2A1050';
+const PILL_ACTIVE = '#5B21B6';
+const CARD_BG = '#C4C4C4';
+const CARD_SURFACE = '#2A1550';
+const TEXT_PRIMARY = '#FFFFFF';
+const TEXT_SECONDARY = '#C4B5FD';
+
+const { width: SCREEN_W } = Dimensions.get('window');
+const CARD_W = (SCREEN_W - 48 - 24) / 3;
+const CARD_H = CARD_W * 1.35;
+
+const TABS = ['Películas', 'Series', 'Social'] as const;
+type Tab = (typeof TABS)[number];
+
+// ─── Tipos que devuelve el backend ──────────────────────────────────────────
+interface ContentItem {
+  id: string;
+  title: string;
+  type: 'movie' | 'series';
+  genre?: string;
+  year?: number;
+  thumbnailUrl?: string;
+}
+
+// ─── Hook para llamadas autenticadas ────────────────────────────────────────
+function useHomeData(token: string | null) {
+  const [trending, setTrending] = useState<ContentItem[]>([]);
+  const [recommended, setRecommended] = useState<ContentItem[]>([]);
+  const [loadingTrending, setLoadingTrending] = useState(true);
+  const [loadingRecommended, setLoadingRecommended] = useState(true);
+
+  useEffect(() => {
+    // GET /home/trending  → público, no necesita token
+    fetch(`${API_BASE_URL}/home/trending`)
+      .then(r => r.json())
+      .then((data: any) => setTrending(Array.isArray(data) ? data : []))
+      .catch(() => setTrending([]))
+      .finally(() => setLoadingTrending(false));
+  }, []);
+
+  useEffect(() => {
+    if (!token) return;
+    // GET /home/recommended → requiere JWT (devuelve recomendados por watchlist)
+    fetch(`${API_BASE_URL}/home/recommended`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then((data: any) => setRecommended(Array.isArray(data) ? data : []))
+      .catch(() => setRecommended([]))
+      .finally(() => setLoadingRecommended(false));
+  }, [token]);
+
+  return { trending, recommended, loadingTrending, loadingRecommended };
+}
+
+// ─── Hook para historial del usuario ────────────────────────────────────────
+function useHistory(token: string | null) {
+  const [history, setHistory] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!token) return;
+    // GET /users/history → últimos 10 contentIds vistos
+    fetch(`${API_BASE_URL}/users/history`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then((ids: string[]) => setHistory(ids))
+      .catch(() => setHistory([]));
+  }, [token]);
+
+  return history;
+}
+
+// ─── Componente principal ────────────────────────────────────────────────────
 export default function HomeScreen() {
-  const { userId } = useAuth();
+  const { token, userId } = useAuth();
+  const [activeTab, setActiveTab] = useState<Tab>('Películas');
+
+  const { trending, recommended, loadingTrending, loadingRecommended } =
+    useHomeData(token);
+  const historyIds = useHistory(token);
+
+  // Filtrar por tab activo (Películas / Series)
+  const filterByTab = (items: ContentItem[]) => {
+    if (activeTab === 'Películas') return items.filter(i => i.type === 'movie');
+    if (activeTab === 'Series') return items.filter(i => i.type === 'series');
+    return items; // Social: por ahora muestra todo
+  };
+
+  const trendingFiltered = filterByTab(trending);
+  // "Seguir viendo" = contenido recomendado (basado en watchlist/historial del usuario)
+  const continueWatching = filterByTab(recommended);
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      {/* ── Header ── */}
+      <View style={styles.header}>
+        <Text style={styles.logo}>Stave</Text>
+        <TouchableOpacity style={styles.avatarBtn} activeOpacity={0.7}>
+          <Ionicons name="person-circle-outline" size={36} color={TEXT_SECONDARY} />
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Tabs ── */}
+      <View style={styles.tabRow}>
+        {TABS.map((tab) => (
+          <TouchableOpacity
+            key={tab}
+            style={[styles.tabPill, activeTab === tab && styles.tabPillActive]}
+            onPress={() => setActiveTab(tab)}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.tabLabel, activeTab === tab && styles.tabLabelActive]}>
+              {tab}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       <ScrollView
-        contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
       >
-        {/* Bienvenida */}
-        <View style={styles.welcomeCard}>
-          <View style={styles.welcomeLeft}>
-            <Text style={styles.welcomeSmall}>Bienvenido a</Text>
-            <Text style={styles.welcomeBig}>Stave 🎵</Text>
-            <Text style={styles.welcomeSub}>Tu espacio musical</Text>
-          </View>
-          <View style={styles.avatarCircle}>
-            <Ionicons name="musical-notes" size={28} color={PURPLE} />
+        {/* ── Burbuja de bienvenida ── */}
+        <View style={styles.bubbleRow}>
+          <View style={styles.bubble} />
+          <View style={styles.welcomeText}>
+            <Text style={styles.welcomeLine1}>Hola usuario,</Text>
+            <Text style={styles.welcomeLine2}>que te gustaría ver hoy ?</Text>
           </View>
         </View>
 
-        {/* Sección rápida */}
-        <Text style={styles.sectionTitle}>Acciones rápidas</Text>
-        <View style={styles.quickRow}>
-          <QuickCard icon="people-outline" label="Comunidad" color="#5856D6" />
-          <QuickCard icon="person-outline" label="Perfil" color="#34C759" />
-          <QuickCard icon="star-outline" label="Logros" color="#FF9500" />
-        </View>
+        {/* ── Seguir viendo (recommended del backend) ── */}
+        <SectionBlock
+          title="Seguir viendo"
+          items={continueWatching}
+          loading={loadingRecommended}
+        />
 
-        {/* Info card */}
-        <View style={styles.infoCard}>
-          <Ionicons name="information-circle-outline" size={20} color={PURPLE} />
-          <Text style={styles.infoText}>
-            Módulo de autenticación activo. ID de sesión: {userId?.slice(0, 8)}…
-          </Text>
-        </View>
+        {/* ── Tendencia (trending del backend) ── */}
+        <SectionBlock
+          title="Tendencia"
+          items={trendingFiltered}
+          loading={loadingTrending}
+        />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function QuickCard({ icon, label, color }: { icon: string; label: string; color: string }) {
+// ─── Bloque de sección con cards ─────────────────────────────────────────────
+function SectionBlock({
+  title,
+  items,
+  loading,
+}: {
+  title: string;
+  items: ContentItem[];
+  loading: boolean;
+}) {
   return (
-    <TouchableOpacity style={styles.quickCard} activeOpacity={0.8}>
-      <View style={[styles.quickIcon, { backgroundColor: color + '18' }]}>
-        <Ionicons name={icon as any} size={26} color={color} />
-      </View>
-      <Text style={styles.quickLabel}>{label}</Text>
-    </TouchableOpacity>
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {loading ? (
+        <ActivityIndicator color={TEXT_SECONDARY} style={{ marginVertical: 16 }} />
+      ) : items.length === 0 ? (
+        // Placeholders grises cuando no hay datos aún
+        <View style={styles.cardsRow}>
+          {[0, 1, 2].map(i => (
+            <View key={i} style={styles.cardWrapper}>
+              <View style={styles.cardImage} />
+              <Text style={styles.cardLabel}>XXXXX</Text>
+            </View>
+          ))}
+        </View>
+      ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={styles.cardsRow}>
+            {items.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.cardWrapper}
+                activeOpacity={0.8}
+              >
+                {item.thumbnailUrl ? (
+                  <Image
+                    source={{ uri: item.thumbnailUrl }}
+                    style={styles.cardImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={styles.cardImage} />
+                )}
+                <Text style={styles.cardLabel} numberOfLines={1}>
+                  {item.title}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
+      )}
+    </View>
   );
 }
 
+// ─── Estilos ─────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F8F7FF' },
-  scroll: { padding: 20, paddingBottom: 40 },
-  welcomeCard: {
-    backgroundColor: PURPLE,
-    borderRadius: 20,
-    padding: 22,
+  safe: { flex: 1, backgroundColor: BG },
+
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 28,
-    shadowColor: PURPLE,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
   },
-  welcomeLeft: {},
-  welcomeSmall: { color: 'rgba(255,255,255,0.75)', fontSize: 13 },
-  welcomeBig: { color: '#FFF', fontSize: 26, fontWeight: '800', marginVertical: 2 },
-  welcomeSub: { color: 'rgba(255,255,255,0.75)', fontSize: 13 },
-  avatarCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+  logo: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: TEXT_PRIMARY,
+    letterSpacing: -0.5,
+  },
+  avatarBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: SURFACE,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  tabRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    gap: 8,
+    marginBottom: 4,
+  },
+  tabPill: {
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  tabPillActive: { backgroundColor: PILL_ACTIVE },
+  tabLabel: { fontSize: 14, fontWeight: '600', color: TEXT_SECONDARY },
+  tabLabelActive: { color: TEXT_PRIMARY },
+
+  scroll: { paddingBottom: 40 },
+
+  bubbleRow: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 36,
+  },
+  welcomeText: {
+    alignItems: 'flex-start',
+    width: '100%',
+    paddingHorizontal: 16,
+    paddingVertical: 18,
+  },
+  welcomeLine1: {
+    fontSize: 20,
+    fontWeight: '400',
+    color: TEXT_PRIMARY,
+    lineHeight: 28,
+    textAlign: 'left',
+  },
+  welcomeLine2: {
+    fontSize: 20,
+    fontWeight: '400',
+    color: TEXT_PRIMARY,
+    lineHeight: 28,
+    textAlign: 'left',
+  },
+  bubble: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    borderRadius: 20,
+    backgroundColor: 'rgba(80, 30, 140, 0.75)',
+    borderWidth: 1,
+    borderColor: 'rgba(196, 181, 253, 0.15)',
+  },
+
+  section: {
+    paddingHorizontal: 16,
+    marginBottom: 28,
+    backgroundColor: CARD_SURFACE,
+    borderRadius: 16,
+    paddingVertical: 14,
+    marginHorizontal: 12,
   },
   sectionTitle: {
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: '700',
-    color: '#1C1C1E',
-    marginBottom: 14,
+    color: TEXT_PRIMARY,
+    marginBottom: 12,
+    marginLeft: 4,
   },
-  quickRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
+  cardsRow: { flexDirection: 'row', gap: 8 },
+
+  cardWrapper: { width: CARD_W },
+  cardImage: {
+    width: CARD_W,
+    height: CARD_H,
+    borderRadius: 10,
+    backgroundColor: CARD_BG,
+    marginBottom: 6,
   },
-  quickCard: {
-    flex: 1,
-    backgroundColor: '#FFF',
-    borderRadius: 16,
-    padding: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  quickIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  quickLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#3C3C43',
-  },
-  infoCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: PURPLE + '12',
-    borderRadius: 12,
-    padding: 14,
-    gap: 10,
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 13,
-    color: '#3C3C43',
-    lineHeight: 18,
-  },
+  cardLabel: { fontSize: 11, color: TEXT_PRIMARY, fontWeight: '500' },
 });

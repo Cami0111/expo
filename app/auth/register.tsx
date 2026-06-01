@@ -23,6 +23,7 @@ export default function RegisterScreen() {
   const { register } = useAuth();
 
   const [username, setUsername]         = useState('');
+  const [email, setEmail]               = useState('');
   const [password, setPassword]         = useState('');
   const [confirmPassword, setConfirm]   = useState('');
   const [acceptTerms, setAcceptTerms]   = useState(false);
@@ -34,6 +35,8 @@ export default function RegisterScreen() {
   const validate = (): boolean => {
     const e: Record<string, string> = {};
     if (!username.trim())                    e.username = 'Campo requerido';
+    if (!email.trim())                       e.email    = 'Campo requerido';
+    else if (!/\S+@\S+\.\S+/.test(email))   e.email    = 'Email inválido';
     if (!password)                           e.password = 'Campo requerido';
     else if (password.length < 6)            e.password = 'M\u00ednimo 6 caracteres';
     if (password !== confirmPassword)        e.confirm  = 'Las contrase\u00f1as no coinciden';
@@ -48,6 +51,7 @@ export default function RegisterScreen() {
     try {
       await register({
         username: username.trim(),
+        email: email.trim(),
         password,
       });
       router.replace('/(tabs)');
@@ -93,6 +97,22 @@ export default function RegisterScreen() {
                 returnKeyType="next"
               />
               {errors.username ? <Text style={styles.errorText}>{errors.username}</Text> : null}
+            </View>
+
+            {/* Email */}
+            <View style={styles.fieldWrapper}>
+              <TextInput
+                style={[styles.input, errors.email ? styles.inputError : null]}
+                placeholder="Correo electrónico"
+                placeholderTextColor="rgba(255,255,255,0.45)"
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
+                value={email}
+                onChangeText={t => { setEmail(t); clearError('email'); }}
+                returnKeyType="next"
+              />
+              {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
             </View>
 
             {/* Contrase\u00f1a */}

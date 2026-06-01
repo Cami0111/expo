@@ -1,9 +1,9 @@
 import { useAuth } from '@/context/auth-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { TouchableOpacity } from 'react-native';
 
-const PURPLE = '#6C5CE7';
+const BG = '#1C0A3A';
+const PURPLE = '#A78BFA';
 
 export default function TabsLayout() {
   const { logout } = useAuth();
@@ -11,11 +11,12 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
+        headerShown: false,          // El home maneja su propio header
         tabBarActiveTintColor: PURPLE,
-        tabBarInactiveTintColor: '#8E8E93',
+        tabBarInactiveTintColor: '#6B7280',
         tabBarStyle: {
-          backgroundColor: '#FFFFFF',
-          borderTopColor: '#E5E5EA',
+          backgroundColor: '#120828',
+          borderTopColor: '#2D1654',
           borderTopWidth: 1,
           paddingBottom: 6,
           paddingTop: 6,
@@ -25,15 +26,6 @@ export default function TabsLayout() {
           fontSize: 11,
           fontWeight: '600',
         },
-        headerStyle: {
-          backgroundColor: '#FFFFFF',
-        },
-        headerTitleStyle: {
-          fontWeight: '700',
-          fontSize: 18,
-          color: '#1C1C1E',
-        },
-        headerShadowVisible: false,
       }}
     >
       <Tabs.Screen
@@ -42,11 +34,6 @@ export default function TabsLayout() {
           title: 'Inicio',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={color} />
-          ),
-          headerRight: () => (
-            <TouchableOpacity onPress={logout} style={{ marginRight: 16 }}>
-              <Ionicons name="log-out-outline" size={24} color={PURPLE} />
-            </TouchableOpacity>
           ),
         }}
       />

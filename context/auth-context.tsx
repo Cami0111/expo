@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 
-const API_BASE_URL = 'http://10.0.2.2:3000'; // Android emulator → localhost
+const API_BASE_URL = 'http://192.168.88.73:3000'; // Android emulator → localhost
 // Para dispositivo físico cambia a tu IP local: 'http://192.168.x.x:3000'
 
 interface AuthState {
@@ -12,6 +12,7 @@ interface AuthState {
 
 interface RegisterData {
   username: string;
+  email: string;
   password: string;
 }
 
