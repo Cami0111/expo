@@ -1,9 +1,10 @@
+import { Toast } from '@/components/Toast';
+import { Colors } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Dimensions,
   KeyboardAvoidingView,
   Platform,
@@ -13,7 +14,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -29,6 +30,11 @@ export default function RegisterScreen() {
   const [acceptTerms, setAcceptTerms]   = useState(false);
   const [loading, setLoading]           = useState(false);
   const [errors, setErrors]             = useState<Record<string, string>>({});
+  const [toast, setToast] = useState<{ visible: boolean; message: string; type: 'success' | 'error' }>({
+    visible: false,
+    message: '',
+    type: 'success',
+  });
 
   const clearError = (key: string) => setErrors(e => { const n = { ...e }; delete n[key]; return n; });
 
@@ -38,9 +44,9 @@ export default function RegisterScreen() {
     if (!email.trim())                       e.email    = 'Campo requerido';
     else if (!/\S+@\S+\.\S+/.test(email))   e.email    = 'Email inválido';
     if (!password)                           e.password = 'Campo requerido';
-    else if (password.length < 6)            e.password = 'M\u00ednimo 6 caracteres';
-    if (password !== confirmPassword)        e.confirm  = 'Las contrase\u00f1as no coinciden';
-    if (!acceptTerms)                        e.terms    = 'Debes aceptar los t\u00e9rminos';
+    else if (password.length < 6)            e.password = 'Mínimo 6 caracteres';
+    if (password !== confirmPassword)        e.confirm  = 'Las contraseñas no coinciden';
+    if (!acceptTerms)                        e.terms    = 'Debes aceptar los términos';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -54,9 +60,20 @@ export default function RegisterScreen() {
         email: email.trim(),
         password,
       });
-      router.replace('/(tabs)');
+      setToast({ visible: true, message: '¡Registro exitoso! Ya puedes iniciar sesión', type: 'success' });
+      setTimeout(() => {
+        router.replace('/auth/login');
+      }, 2000);
     } catch (err: any) {
-      Alert.alert('Error al registrarse', err.message ?? 'Ocurri\u00f3 un error inesperado');
+      const errorMsg = err.message ?? 'Error al registrarse';
+      const friendlyMsg = errorMsg.includes('usuario') && errorMsg.includes('existe')
+        ? 'Este usuario ya existe'
+        : errorMsg;
+      setToast({
+        visible: true,
+        message: friendlyMsg,
+        type: 'error',
+      });
     } finally {
       setLoading(false);
     }
@@ -64,6 +81,12 @@ export default function RegisterScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onHide={() => setToast({ ...toast, visible: false })}
+      />
       <KeyboardAvoidingView
         style={{ flex: 1, width: '100%', alignItems: 'center' }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -115,7 +138,7 @@ export default function RegisterScreen() {
               {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
             </View>
 
-            {/* Contrase\u00f1a */}
+            {/* Contraseña */}
             <View style={styles.fieldWrapper}>
               <TextInput
                 style={[styles.input, errors.password ? styles.inputError : null]}
@@ -129,7 +152,7 @@ export default function RegisterScreen() {
               {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
             </View>
 
-            {/* Confirmar contrase\u00f1a */}
+            {/* Confirmar contraseña */}
             <View style={styles.fieldWrapper}>
               <TextInput
                 style={[styles.input, errors.confirm ? styles.inputError : null]}
@@ -144,7 +167,7 @@ export default function RegisterScreen() {
               {errors.confirm ? <Text style={styles.errorText}>{errors.confirm}</Text> : null}
             </View>
 
-            {/* Bot\u00f3n Registrarse */}
+            {/* Botón Registrarse */}
             <TouchableOpacity
               style={[styles.btnPrimary, loading && styles.btnDisabled]}
               onPress={handleRegister}
@@ -157,7 +180,7 @@ export default function RegisterScreen() {
               }
             </TouchableOpacity>
 
-            {/* Toggle t\u00e9rminos */}
+            {/* Toggle términos */}
             <View style={styles.toggleRow}>
               <Switch
                 value={acceptTerms}
@@ -188,9 +211,9 @@ export default function RegisterScreen() {
   );
 }
 
-const BG      = '#1C0A3A';
-const CARD_BG = '#3B1F6A';
-const BTN     = '#6B2FA0';
+const BG = Colors.BG_PRIMARY;
+const CARD_BG = Colors.BG_CARD;
+const BTN = Colors.ACCENT_PRIMARY;
 
 const styles = StyleSheet.create({
   safe: {

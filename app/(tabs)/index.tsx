@@ -1,3 +1,4 @@
+import { BASE_URL } from '@/api/config';
 import { useAuth } from '@/context/auth-context';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
@@ -12,9 +13,6 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-// ─── Misma URL base que en auth-context ─────────────────────────────────────
-const API_BASE_URL = 'http://192.168.88.73:3000';
 
 // ─── Paleta fiel al diseño Figma ────────────────────────────────────────────
 const BG = '#1C0A3A';
@@ -51,7 +49,7 @@ function useHomeData(token: string | null) {
 
   useEffect(() => {
     // GET /home/trending  → público, no necesita token
-    fetch(`${API_BASE_URL}/home/trending`)
+    fetch(`${BASE_URL}/home/trending`)
       .then(r => r.json())
       .then((data: any) => setTrending(Array.isArray(data) ? data : []))
       .catch(() => setTrending([]))
@@ -61,7 +59,7 @@ function useHomeData(token: string | null) {
   useEffect(() => {
     if (!token) return;
     // GET /home/recommended → requiere JWT (devuelve recomendados por watchlist)
-    fetch(`${API_BASE_URL}/home/recommended`, {
+    fetch(`${BASE_URL}/home/recommended`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.json())
@@ -80,7 +78,7 @@ function useHistory(token: string | null) {
   useEffect(() => {
     if (!token) return;
     // GET /users/history → últimos 10 contentIds vistos
-    fetch(`${API_BASE_URL}/users/history`, {
+    fetch(`${BASE_URL}/users/history`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.json())

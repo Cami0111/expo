@@ -1,17 +1,28 @@
 import { useAuth } from '@/context/auth-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
+import { ActivityIndicator, View } from 'react-native';
 
 const BG = '#1C0A3A';
 const PURPLE = '#A78BFA';
 
 export default function TabsLayout() {
-  const { logout } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#1C0A3A', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color="#6C5CE7" />
+      </View>
+    );
+  }
+
+  if (!isAuthenticated) return <Redirect href="/auth/login" />;
 
   return (
     <Tabs
       screenOptions={{
-        headerShown: false,          // El home maneja su propio header
+        headerShown: false,
         tabBarActiveTintColor: PURPLE,
         tabBarInactiveTintColor: '#6B7280',
         tabBarStyle: {
@@ -43,6 +54,15 @@ export default function TabsLayout() {
           title: 'Explorar',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'compass' : 'compass-outline'} size={24} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="feed"
+        options={{
+          title: 'Comunidad',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'people' : 'people-outline'} size={24} color={color} />
           ),
         }}
       />
