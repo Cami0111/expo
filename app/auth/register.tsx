@@ -1,4 +1,5 @@
 import { useAuth } from '@/context/auth-context';
+import { Colors } from '@/constants/theme';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -22,22 +23,22 @@ const { width } = Dimensions.get('window');
 export default function RegisterScreen() {
   const { register } = useAuth();
 
-  const [username, setUsername]         = useState('');
-  const [password, setPassword]         = useState('');
-  const [confirmPassword, setConfirm]   = useState('');
-  const [acceptTerms, setAcceptTerms]   = useState(false);
-  const [loading, setLoading]           = useState(false);
-  const [errors, setErrors]             = useState<Record<string, string>>({});
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirm] = useState('');
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const clearError = (key: string) => setErrors(e => { const n = { ...e }; delete n[key]; return n; });
 
   const validate = (): boolean => {
     const e: Record<string, string> = {};
-    if (!username.trim())                    e.username = 'Campo requerido';
-    if (!password)                           e.password = 'Campo requerido';
-    else if (password.length < 6)            e.password = 'M\u00ednimo 6 caracteres';
-    if (password !== confirmPassword)        e.confirm  = 'Las contrase\u00f1as no coinciden';
-    if (!acceptTerms)                        e.terms    = 'Debes aceptar los t\u00e9rminos';
+    if (!username.trim()) e.username = 'Campo requerido';
+    if (!password) e.password = 'Campo requerido';
+    else if (password.length < 6) e.password = 'M\u00ednimo 6 caracteres';
+    if (password !== confirmPassword) e.confirm = 'Las contrase\u00f1as no coinciden';
+    if (!acceptTerms) e.terms = 'Debes aceptar los t\u00e9rminos';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -50,7 +51,7 @@ export default function RegisterScreen() {
         username: username.trim(),
         password,
       });
-      router.replace('/(tabs)');
+      router.replace('/home/home');
     } catch (err: any) {
       Alert.alert('Error al registrarse', err.message ?? 'Ocurri\u00f3 un error inesperado');
     } finally {
@@ -168,9 +169,9 @@ export default function RegisterScreen() {
   );
 }
 
-const BG      = '#1C0A3A';
-const CARD_BG = '#3B1F6A';
-const BTN     = '#6B2FA0';
+const BG = Colors.BG_PRIMARY;
+const CARD_BG = Colors.BG_CARD;
+const BTN = Colors.ACCENT_PRIMARY;
 
 const styles = StyleSheet.create({
   safe: {

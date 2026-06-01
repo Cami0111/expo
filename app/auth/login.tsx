@@ -1,4 +1,5 @@
 import { useAuth } from '@/context/auth-context';
+import { Colors } from '@/constants/theme';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -24,15 +25,15 @@ export default function LoginScreen() {
 
   // El backend acepta username, no email — guardamos en "username"
   const [username, setUsername] = useState('');
-  const [password, setPassword]   = useState('');
+  const [password, setPassword] = useState('');
   const [keepSession, setKeepSession] = useState(false);
-  const [loading, setLoading]     = useState(false);
-  const [errors, setErrors]       = useState<{ username?: string; password?: string }>({});
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<{ username?: string; password?: string }>({});
 
   const validate = () => {
     const e: typeof errors = {};
     if (!username.trim()) e.username = 'Campo requerido';
-    if (!password)        e.password  = 'Campo requerido';
+    if (!password) e.password = 'Campo requerido';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -42,7 +43,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await login({ username: username.trim(), password });
-      router.replace('/(tabs)');
+      router.replace('/home/home');
     } catch (err: any) {
       Alert.alert('Error', err.message ?? 'No se pudo iniciar sesión');
     } finally {
@@ -144,9 +145,9 @@ export default function LoginScreen() {
   );
 }
 
-const BG      = '#1C0A3A';
-const CARD_BG = '#3B1F6A';
-const BTN     = '#6B2FA0';
+const BG = Colors.BG_PRIMARY;
+const CARD_BG = Colors.BG_CARD;
+const BTN = Colors.ACCENT_PRIMARY;
 
 const styles = StyleSheet.create({
   safe: {

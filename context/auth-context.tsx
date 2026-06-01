@@ -1,8 +1,6 @@
+import { BASE_URL } from '@/api/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, ReactNode, useContext, useEffect, useState } from 'react';
-
-const API_BASE_URL = 'http://10.0.2.2:3000'; // Android emulator → localhost
-// Para dispositivo físico cambia a tu IP local: 'http://192.168.x.x:3000'
 
 interface AuthState {
   token: string | null;
@@ -56,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const login = async (data: LoginData) => {
-    const res = await fetch(`${API_BASE_URL}/auth/login`, {
+    const res = await fetch(`${BASE_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -67,12 +65,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error(err.message ?? 'Credenciales inválidas');
     }
 
-    const { token, userId } = await res.json();
-    await saveSession(token, userId);
+    const body = await res.json();
+    const token = body.access_token ?? body.token ?? body.jwt;
+    const userId = body.userId ?? body.user?._id ?? body.user?.id ?? body.sub;
+
+    if (!token) throw new Error('El servidor no devolvió un token');
+    await saveSession(token, userId ?? '');
   };
 
   const register = async (data: RegisterData) => {
-    const res = await fetch(`${API_BASE_URL}/auth/register`, {
+    const res = await fetch(`${BASE_URL}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -83,8 +85,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error(err.message ?? 'Error al registrarse');
     }
 
-    const { token, userId } = await res.json();
-    await saveSession(token, userId);
+    const body = await res.json();
+    const token = body.access_token ?? body.token ?? body.jwt;
+    const userId = body.userId ?? body.user?._id ?? body.user?.id ?? body.sub;
+
+    if (!token) throw new Error('El servidor no devolvió un token');
+    await saveSession(token, userId ?? '');
   };
 
   const logout = async () => {
