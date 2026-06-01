@@ -28,7 +28,7 @@ const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_W = (SCREEN_W - 48 - 24) / 3;
 const CARD_H = CARD_W * 1.35;
 
-const TABS = ['Películas', 'Series', 'Social'] as const;
+const TABS = ['Películas', 'Series'] as const;
 type Tab = (typeof TABS)[number];
 
 // ─── Tipos que devuelve el backend ──────────────────────────────────────────
@@ -92,7 +92,7 @@ function useHistory(token: string | null) {
 
 // ─── Componente principal ────────────────────────────────────────────────────
 export default function HomeScreen() {
-  const { token, userId } = useAuth();
+  const { token, userId, username } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('Películas');
   const [menuVisible, setMenuVisible] = useState(false);
 
@@ -100,16 +100,29 @@ export default function HomeScreen() {
     useHomeData(token);
   const historyIds = useHistory(token);
 
+  // Mezcla aleatoria (Fisher-Yates) para "Seguir viendo"
+  function shuffled<T>(arr: T[]): T[] {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
   // Filtrar por tab activo (Películas / Series)
   const filterByTab = (items: ContentItem[]) => {
     if (activeTab === 'Películas') return items.filter(i => i.type === 'movie');
     if (activeTab === 'Series') return items.filter(i => i.type === 'series');
-    return items; // Social: por ahora muestra todo
+    return items;
   };
 
   const trendingFiltered = filterByTab(trending);
-  // "Seguir viendo" = contenido recomendado (basado en watchlist/historial del usuario)
-  const continueWatching = filterByTab(recommended);
+  // "Seguir viendo" = recomendados mezclados para diferenciarse de tendencia
+  const continueWatching = React.useMemo(
+    () => shuffled(filterByTab(recommended)),
+    [recommended, activeTab]
+  );
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -149,7 +162,9 @@ export default function HomeScreen() {
         <View style={styles.bubbleRow}>
           <View style={styles.bubble} />
           <View style={styles.welcomeText}>
-            <Text style={styles.welcomeLine1}>Hola usuario,</Text>
+            <Text style={styles.welcomeLine1}>
+              Hola <Text style={styles.welcomeUsername}>{username ?? 'usuario'}</Text>,
+            </Text>
             <Text style={styles.welcomeLine2}>que te gustaría ver hoy ?</Text>
           </View>
         </View>
@@ -288,14 +303,18 @@ const styles = StyleSheet.create({
   },
   welcomeLine1: {
     fontSize: 20,
-    fontWeight: '400',
+    fontWeight: '600',
     color: TEXT_PRIMARY,
     lineHeight: 28,
     textAlign: 'left',
   },
+  welcomeUsername: {
+    fontWeight: '700',
+    color: TEXT_SECONDARY,
+  },
   welcomeLine2: {
     fontSize: 20,
-    fontWeight: '400',
+    fontWeight: '600',
     color: TEXT_PRIMARY,
     lineHeight: 28,
     textAlign: 'left',

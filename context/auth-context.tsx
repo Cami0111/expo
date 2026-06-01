@@ -5,6 +5,7 @@ import { createContext, ReactNode, useContext, useEffect, useState } from 'react
 interface AuthState {
   token: string | null;
   userId: string | null;
+  username: string | null;
   isLoading: boolean;
 }
 
@@ -28,30 +29,49 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+// Decodifica el payload de un JWT sin librerías externas
+function decodeJwtPayload(token: string): Record<string, any> | null {
+  try {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const json = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({
     token: null,
     userId: null,
+    username: null,
     isLoading: true,
   });
 
-  // Cargar token guardado al iniciar
+  // Cargar sesión guardada al iniciar
   useEffect(() => {
     (async () => {
       try {
         const token = await AsyncStorage.getItem('stave_token');
         const userId = await AsyncStorage.getItem('stave_userId');
-        setState({ token, userId, isLoading: false });
+        const username = await AsyncStorage.getItem('stave_username');
+        setState({ token, userId, username, isLoading: false });
       } catch {
-        setState({ token: null, userId: null, isLoading: false });
+        setState({ token: null, userId: null, username: null, isLoading: false });
       }
     })();
   }, []);
 
-  const saveSession = async (token: string, userId: string) => {
+  const saveSession = async (token: string, userId: string, username: string) => {
     await AsyncStorage.setItem('stave_token', token);
     await AsyncStorage.setItem('stave_userId', userId);
-    setState(prev => ({ ...prev, token, userId }));
+    await AsyncStorage.setItem('stave_username', username);
+    setState(prev => ({ ...prev, token, userId, username }));
   };
 
   const login = async (data: LoginData) => {
@@ -66,12 +86,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error(err.message ?? 'Credenciales inválidas');
     }
 
+    // Backend devuelve: { token, userId }
+    // El username está dentro del payload del JWT como { sub, username }
     const body = await res.json();
-    const token = body.access_token ?? body.token ?? body.jwt;
-    const userId = body.userId ?? body.user?._id ?? body.user?.id ?? body.sub;
+    const token = body.token ?? body.access_token ?? body.jwt;
+    const userId = body.userId ?? body.user?._id ?? body.user?.id;
 
     if (!token) throw new Error('El servidor no devolvió un token');
-    await saveSession(token, userId ?? '');
+
+    const payload = decodeJwtPayload(token);
+    const username = payload?.username ?? data.username;
+
+    await saveSession(token, userId ?? '', username ?? '');
   };
 
   const register = async (data: RegisterData) => {
@@ -86,18 +112,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error(err.message ?? 'Error al registrarse');
     }
 
+    // Mismo formato de respuesta que login
     const body = await res.json();
-    const token = body.access_token ?? body.token ?? body.jwt;
-    const userId = body.userId ?? body.user?._id ?? body.user?.id ?? body.sub;
+    const token = body.token ?? body.access_token ?? body.jwt;
+    const userId = body.userId ?? body.user?._id ?? body.user?.id;
 
     if (!token) throw new Error('El servidor no devolvió un token');
-    await saveSession(token, userId ?? '');
+
+    const payload = decodeJwtPayload(token);
+    const username = payload?.username ?? data.username;
+
+    await saveSession(token, userId ?? '', username ?? '');
   };
 
   const logout = async () => {
     await AsyncStorage.removeItem('stave_token');
     await AsyncStorage.removeItem('stave_userId');
-    setState(prev => ({ ...prev, token: null, userId: null }));
+    await AsyncStorage.removeItem('stave_username');
+    setState(prev => ({ ...prev, token: null, userId: null, username: null }));
   };
 
   return (

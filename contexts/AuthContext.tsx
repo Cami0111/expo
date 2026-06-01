@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 
 export interface User {
   id: string;
@@ -10,6 +10,7 @@ export interface User {
 
 interface AuthContextType {
   user: User | null;
+  username: string | null;
   isLoading: boolean;
   isSignedIn: boolean;
   login: (user: User, token: string) => Promise<void>;
@@ -82,6 +83,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const value = {
     user,
+    username: user?.username ?? null,
     isLoading,
     isSignedIn: !!user,
     login,

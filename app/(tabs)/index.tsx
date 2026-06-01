@@ -28,7 +28,8 @@ const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_W = (SCREEN_W - 48 - 24) / 3;
 const CARD_H = CARD_W * 1.35;
 
-const TABS = ['Películas', 'Series', 'Social'] as const;
+// ── "Social" eliminado ──────────────────────────────────────────────────────
+const TABS = ['Películas', 'Series'] as const;
 type Tab = (typeof TABS)[number];
 
 // ─── Tipos que devuelve el backend ──────────────────────────────────────────
@@ -49,7 +50,6 @@ function useHomeData(token: string | null) {
   const [loadingRecommended, setLoadingRecommended] = useState(true);
 
   useEffect(() => {
-    // GET /home/trending  → público, no necesita token
     fetch(`${BASE_URL}/home/trending`)
       .then(r => r.json())
       .then((data: any) => setTrending(Array.isArray(data) ? data : []))
@@ -59,7 +59,6 @@ function useHomeData(token: string | null) {
 
   useEffect(() => {
     if (!token) return;
-    // GET /home/recommended → requiere JWT (devuelve recomendados por watchlist)
     fetch(`${BASE_URL}/home/recommended`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -78,7 +77,6 @@ function useHistory(token: string | null) {
 
   useEffect(() => {
     if (!token) return;
-    // GET /users/history → últimos 10 contentIds vistos
     fetch(`${BASE_URL}/users/history`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -90,9 +88,19 @@ function useHistory(token: string | null) {
   return history;
 }
 
+// ─── Mezcla aleatoria Fisher-Yates ───────────────────────────────────────────
+function shuffled<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 // ─── Componente principal ────────────────────────────────────────────────────
 export default function HomeScreen() {
-  const { token, userId } = useAuth();
+  const { token, userId, username } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('Películas');
   const [menuVisible, setMenuVisible] = useState(false);
 
@@ -100,16 +108,18 @@ export default function HomeScreen() {
     useHomeData(token);
   const historyIds = useHistory(token);
 
-  // Filtrar por tab activo (Películas / Series)
   const filterByTab = (items: ContentItem[]) => {
     if (activeTab === 'Películas') return items.filter(i => i.type === 'movie');
     if (activeTab === 'Series') return items.filter(i => i.type === 'series');
-    return items; // Social: por ahora muestra todo
+    return items;
   };
 
   const trendingFiltered = filterByTab(trending);
-  // "Seguir viendo" = contenido recomendado (basado en watchlist/historial del usuario)
-  const continueWatching = filterByTab(recommended);
+  // "Seguir viendo" mezclado para diferenciarse visualmente de "Tendencia"
+  const continueWatching = React.useMemo(
+    () => shuffled(filterByTab(recommended)),
+    [recommended, activeTab]
+  );
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -125,7 +135,7 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* ── Tabs ── */}
+      {/* ── Tabs (sin Social) ── */}
       <View style={styles.tabRow}>
         {TABS.map((tab) => (
           <TouchableOpacity
@@ -149,19 +159,21 @@ export default function HomeScreen() {
         <View style={styles.bubbleRow}>
           <View style={styles.bubble} />
           <View style={styles.welcomeText}>
-            <Text style={styles.welcomeLine1}>Hola usuario,</Text>
+            <Text style={styles.welcomeLine1}>
+              Hola <Text style={styles.welcomeUsername}>{username ?? 'usuario'}</Text>,
+            </Text>
             <Text style={styles.welcomeLine2}>que te gustaría ver hoy ?</Text>
           </View>
         </View>
 
-        {/* ── Seguir viendo (recommended del backend) ── */}
+        {/* ── Seguir viendo ── */}
         <SectionBlock
           title="Seguir viendo"
           items={continueWatching}
           loading={loadingRecommended}
         />
 
-        {/* ── Tendencia (trending del backend) ── */}
+        {/* ── Tendencia ── */}
         <SectionBlock
           title="Tendencia"
           items={trendingFiltered}
@@ -191,7 +203,6 @@ function SectionBlock({
       {loading ? (
         <ActivityIndicator color={TEXT_SECONDARY} style={{ marginVertical: 16 }} />
       ) : items.length === 0 ? (
-        // Placeholders grises cuando no hay datos aún
         <View style={styles.cardsRow}>
           {[0, 1, 2].map(i => (
             <View key={i} style={styles.cardWrapper}>
@@ -288,14 +299,18 @@ const styles = StyleSheet.create({
   },
   welcomeLine1: {
     fontSize: 20,
-    fontWeight: '400',
+    fontWeight: '600',
     color: TEXT_PRIMARY,
     lineHeight: 28,
     textAlign: 'left',
   },
+  welcomeUsername: {
+    fontWeight: '700',
+    color: TEXT_SECONDARY,
+  },
   welcomeLine2: {
     fontSize: 20,
-    fontWeight: '400',
+    fontWeight: '600',
     color: TEXT_PRIMARY,
     lineHeight: 28,
     textAlign: 'left',
