@@ -1,4 +1,5 @@
 import { BASE_URL } from '@/api/config';
+import SlideMenu from '@/components/slide-menu';
 import { useAuth } from '@/context/auth-context';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
@@ -93,6 +94,7 @@ function useHistory(token: string | null) {
 export default function HomeScreen() {
   const { token, userId } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('Películas');
+  const [menuVisible, setMenuVisible] = useState(false);
 
   const { trending, recommended, loadingTrending, loadingRecommended } =
     useHomeData(token);
@@ -114,7 +116,11 @@ export default function HomeScreen() {
       {/* ── Header ── */}
       <View style={styles.header}>
         <Text style={styles.logo}>Stave</Text>
-        <TouchableOpacity style={styles.avatarBtn} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.avatarBtn}
+          activeOpacity={0.7}
+          onPress={() => setMenuVisible(true)}
+        >
           <Ionicons name="person-circle-outline" size={36} color={TEXT_SECONDARY} />
         </TouchableOpacity>
       </View>
@@ -162,6 +168,9 @@ export default function HomeScreen() {
           loading={loadingTrending}
         />
       </ScrollView>
+
+      {/* ── Menú lateral ── */}
+      <SlideMenu visible={menuVisible} onClose={() => setMenuVisible(false)} />
     </SafeAreaView>
   );
 }
