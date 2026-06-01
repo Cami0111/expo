@@ -17,6 +17,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Toast } from '@/components/Toast';
 
 const { width } = Dimensions.get('window');
 
@@ -29,6 +30,11 @@ export default function RegisterScreen() {
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [toast, setToast] = useState<{ visible: boolean; message: string; type: 'success' | 'error' }>({
+    visible: false,
+    message: '',
+    type: 'success',
+  });
 
   const clearError = (key: string) => setErrors(e => { const n = { ...e }; delete n[key]; return n; });
 
@@ -49,11 +55,23 @@ export default function RegisterScreen() {
     try {
       await register({
         username: username.trim(),
+        email: `${username.trim()}@stave.local`,
         password,
       });
-      router.replace('/home/home');
+      setToast({ visible: true, message: '\u00a1Registro exitoso! Ya puedes iniciar sesi\u00f3n', type: 'success' });
+      setTimeout(() => {
+        router.replace('/auth/login');
+      }, 2000);
     } catch (err: any) {
-      Alert.alert('Error al registrarse', err.message ?? 'Ocurri\u00f3 un error inesperado');
+      const errorMsg = err.message ?? 'Error al registrarse';
+      const friendlyMsg = errorMsg.includes('usuario') && errorMsg.includes('existe')
+        ? 'Este usuario ya existe'
+        : errorMsg;
+      setToast({
+        visible: true,
+        message: friendlyMsg,
+        type: 'error',
+      });
     } finally {
       setLoading(false);
     }
@@ -61,6 +79,12 @@ export default function RegisterScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onHide={() => setToast({ ...toast, visible: false })}
+      />
       <KeyboardAvoidingView
         style={{ flex: 1, width: '100%', alignItems: 'center' }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

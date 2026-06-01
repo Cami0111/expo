@@ -17,6 +17,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Toast } from '@/components/Toast';
 
 const { width } = Dimensions.get('window');
 
@@ -29,6 +30,11 @@ export default function LoginScreen() {
   const [keepSession, setKeepSession] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ username?: string; password?: string }>({});
+  const [toast, setToast] = useState<{ visible: boolean; message: string; type: 'success' | 'error' }>({
+    visible: false,
+    message: '',
+    type: 'success',
+  });
 
   const validate = () => {
     const e: typeof errors = {};
@@ -45,7 +51,18 @@ export default function LoginScreen() {
       await login({ username: username.trim(), password });
       router.replace('/home/home');
     } catch (err: any) {
-      Alert.alert('Error', err.message ?? 'No se pudo iniciar sesión');
+      const errorMsg = err.message ?? 'No se pudo iniciar sesión';
+      const isInvalidCreds = errorMsg.toLowerCase().includes('invalid') ||
+                             errorMsg.toLowerCase().includes('contraseña') ||
+                             errorMsg.toLowerCase().includes('usuario');
+
+      setToast({
+        visible: true,
+        message: isInvalidCreds
+          ? 'Usuario o contraseña incorrectos. Verifica e intenta de nuevo.'
+          : errorMsg,
+        type: 'error',
+      });
     } finally {
       setLoading(false);
     }
@@ -53,6 +70,12 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onHide={() => setToast({ ...toast, visible: false })}
+      />
       <KeyboardAvoidingView
         style={{ flex: 1, width: '100%', alignItems: 'center' }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

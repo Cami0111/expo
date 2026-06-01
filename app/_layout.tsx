@@ -6,6 +6,7 @@ import { ActivityIndicator, View } from 'react-native';
 import 'react-native-reanimated';
 
 import { AuthProvider, useAuth } from '@/context/auth-context';
+import { ComunidadProvider } from '@/context/comunidad-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 function NavigationGuard({ children }: { children: React.ReactNode }) {
@@ -42,18 +43,20 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <NavigationGuard>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="auth/index" />
-            <Stack.Screen name="auth/login" />
-            <Stack.Screen name="auth/register" />
-            <Stack.Screen name="modal" options={{ presentation: 'modal', headerShown: true, title: 'Modal' }} />
-          </Stack>
-        </NavigationGuard>
-        <StatusBar style="light" backgroundColor="#1C0A3A" />
-      </ThemeProvider>
+      <ComunidadProvider>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <NavigationGuard>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="auth/index" />
+              <Stack.Screen name="auth/login" />
+              <Stack.Screen name="auth/register" />
+              <Stack.Screen name="modal" options={{ presentation: 'modal', headerShown: true, title: 'Modal' }} />
+            </Stack>
+          </NavigationGuard>
+          <StatusBar style="light" backgroundColor="#1C0A3A" />
+        </ThemeProvider>
+      </ComunidadProvider>
     </AuthProvider>
   );
 }
