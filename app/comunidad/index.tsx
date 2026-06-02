@@ -142,7 +142,6 @@ function PostCard({
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(getLikes(post));
   const [resolvedAuthor, setResolvedAuthor] = useState(getAuthor(post));
-  const [authorAvatar, setAuthorAvatar] = useState<string | null>(null);
   const postId = getPostId(post);
   const category = getCategory(post);
   const description = getDescription(post);
@@ -154,18 +153,16 @@ function PostCard({
 
   useEffect(() => {
     const raw = getAuthor(post);
-    setResolvedAuthor(raw);
-
-    if (post.userId) {
+    if ((raw === 'Anónimo' || raw.startsWith('User_')) && post.userId) {
       api.get(`/users/${post.userId}`)
         .then(res => {
           const u = res.data;
           const name = u.displayName ?? u.display_name ?? u.username ?? raw;
           setResolvedAuthor(name);
-          const avatar = u.avatarUrl;
-          if (avatar) setAuthorAvatar(avatar);
         })
         .catch(() => { });
+    } else {
+      setResolvedAuthor(raw);
     }
   }, [post]);
 
@@ -268,11 +265,7 @@ function PostCard({
           }}
         >
           <View style={pst.avatarCircle}>
-            {authorAvatar ? (
-              <Image source={{ uri: authorAvatar }} style={{ width: 36, height: 36, borderRadius: 18 }} contentFit="cover" />
-            ) : (
-              <Text style={pst.avatarText}>{initial}</Text>
-            )}
+            <Text style={pst.avatarText}>{initial}</Text>
           </View>
           <View style={pst.authorInfo}>
             <Text style={pst.authorName}>{resolvedAuthor}</Text>

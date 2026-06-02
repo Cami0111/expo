@@ -29,7 +29,6 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-// Decodifica el payload de un JWT sin librerías externas
 function decodeJwtPayload(token: string): Record<string, any> | null {
   try {
     const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
@@ -53,7 +52,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading: true,
   });
 
-  // Cargar sesión guardada al iniciar
   useEffect(() => {
     (async () => {
       try {
@@ -86,8 +84,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error(err.message ?? 'Credenciales inválidas');
     }
 
-    // Backend devuelve: { token, userId }
-    // El username está dentro del payload del JWT como { sub, username }
     const body = await res.json();
     const token = body.token ?? body.access_token ?? body.jwt;
     const userId = body.userId ?? body.user?._id ?? body.user?.id;

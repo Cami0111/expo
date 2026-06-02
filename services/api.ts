@@ -1,7 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Use environment variable or default to localhost
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api';
 
 const apiClient: AxiosInstance = axios.create({
@@ -9,7 +8,6 @@ const apiClient: AxiosInstance = axios.create({
   timeout: 10000,
 });
 
-// Add auth token interceptor
 apiClient.interceptors.request.use(async (config) => {
   try {
     const token = await AsyncStorage.getItem('authToken');
