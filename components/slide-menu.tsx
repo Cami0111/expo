@@ -1,8 +1,10 @@
+import { api } from '@/api/config';
 import { useAuth } from '@/context/auth-context';
 import { Colors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
@@ -31,10 +33,21 @@ interface SlideMenuProps {
 }
 
 export default function SlideMenu({ visible, onClose }: SlideMenuProps) {
-  const { logout, userId } = useAuth();
+  const { logout, userId, username } = useAuth();
   const insets = useSafeAreaInsets();
   const translateX = useRef(new Animated.Value(MENU_WIDTH)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!userId) return;
+    api.get('/users/profile')
+      .then(res => {
+        const url = res.data?.avatarUrl;
+        if (url) setAvatarUrl(url);
+      })
+      .catch(() => {});
+  }, [userId]);
 
   useEffect(() => {
     if (visible) {
@@ -80,7 +93,7 @@ export default function SlideMenu({ visible, onClose }: SlideMenuProps) {
     setTimeout(logout, 50);
   };
 
-  const initials = userId ? userId.slice(0, 2).toUpperCase() : 'ST';
+  const initials = (username ?? userId ?? 'ST').slice(0, 2).toUpperCase();
 
   return (
     <View
@@ -99,10 +112,18 @@ export default function SlideMenu({ visible, onClose }: SlideMenuProps) {
       >
         <View style={styles.menuHeader}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials}</Text>
+            {avatarUrl ? (
+              <Image
+                source={{ uri: avatarUrl }}
+                style={{ width: 44, height: 44, borderRadius: 22 }}
+                contentFit="cover"
+              />
+            ) : (
+              <Text style={styles.avatarText}>{initials}</Text>
+            )}
           </View>
           <View style={styles.headerInfo}>
-            <Text style={styles.appName}>Stave</Text>
+            <Text style={styles.appName}>{username ?? 'Stave'}</Text>
             <Text style={styles.appSub}>Cine · Critica · Comunidad</Text>
           </View>
           <TouchableOpacity

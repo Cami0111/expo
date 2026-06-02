@@ -1,7 +1,8 @@
-import { BASE_URL } from '@/api/config';
+import { api, BASE_URL } from '@/api/config';
 import SlideMenu from '@/components/slide-menu';
 import { useAuth } from '@/context/auth-context';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -15,7 +16,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// ─── Paleta fiel al diseño Figma ────────────────────────────────────────────
 const BG = '#1C0A3A';
 const SURFACE = '#2A1050';
 const PILL_ACTIVE = '#5B21B6';
@@ -31,9 +31,9 @@ const CARD_H = CARD_W * 1.35;
 const TABS = ['Películas', 'Series'] as const;
 type Tab = (typeof TABS)[number];
 
-// ─── Tipos que devuelve el backend ──────────────────────────────────────────
 interface ContentItem {
   id: string;
+  _id?: string;
   title: string;
   type: 'movie' | 'series';
   genre?: string;
@@ -41,7 +41,6 @@ interface ContentItem {
   thumbnailUrl?: string;
 }
 
-// ─── Hook para llamadas autenticadas ────────────────────────────────────────
 function useHomeData(token: string | null) {
   const [trending, setTrending] = useState<ContentItem[]>([]);
   const [recommended, setRecommended] = useState<ContentItem[]>([]);
@@ -49,7 +48,6 @@ function useHomeData(token: string | null) {
   const [loadingRecommended, setLoadingRecommended] = useState(true);
 
   useEffect(() => {
-    // GET /home/trending  → público, no necesita token
     fetch(`${BASE_URL}/home/trending`)
       .then(r => r.json())
       .then((data: any) => setTrending(Array.isArray(data) ? data : []))
@@ -58,8 +56,10 @@ function useHomeData(token: string | null) {
   }, []);
 
   useEffect(() => {
-    if (!token) return;
-    // GET /home/recommended → requiere JWT (devuelve recomendados por watchlist)
+    if (!token) {
+      setLoadingRecommended(false);
+      return;
+    }
     fetch(`${BASE_URL}/home/recommended`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -72,45 +72,22 @@ function useHomeData(token: string | null) {
   return { trending, recommended, loadingTrending, loadingRecommended };
 }
 
-// ─── Hook para historial del usuario ────────────────────────────────────────
-function useHistory(token: string | null) {
-  const [history, setHistory] = useState<string[]>([]);
+export default function HomeScreen() {
+  const { token, username } = useAuth();
+  const [activeTab, setActiveTab] = useState<Tab>('Películas');
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
-    // GET /users/history → últimos 10 contentIds vistos
-    fetch(`${BASE_URL}/users/history`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.json())
-      .then((ids: string[]) => setHistory(ids))
-      .catch(() => setHistory([]));
+    api.get('/users/profile')
+      .then(res => { if (res.data?.avatarUrl) setAvatarUrl(res.data.avatarUrl); })
+      .catch(() => {});
   }, [token]);
-
-  return history;
-}
-
-// ─── Componente principal ────────────────────────────────────────────────────
-export default function HomeScreen() {
-  const { token, userId, username } = useAuth();
-  const [activeTab, setActiveTab] = useState<Tab>('Películas');
-  const [menuVisible, setMenuVisible] = useState(false);
 
   const { trending, recommended, loadingTrending, loadingRecommended } =
     useHomeData(token);
-  const historyIds = useHistory(token);
 
-  // Mezcla aleatoria (Fisher-Yates) para "Seguir viendo"
-  function shuffled<T>(arr: T[]): T[] {
-    const a = [...arr];
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
-  }
-
-  // Filtrar por tab activo (Películas / Series)
   const filterByTab = (items: ContentItem[]) => {
     if (activeTab === 'Películas') return items.filter(i => i.type === 'movie');
     if (activeTab === 'Series') return items.filter(i => i.type === 'series');
@@ -118,15 +95,11 @@ export default function HomeScreen() {
   };
 
   const trendingFiltered = filterByTab(trending);
-  // "Seguir viendo" = recomendados mezclados para diferenciarse de tendencia
-  const continueWatching = React.useMemo(
-    () => shuffled(filterByTab(recommended)),
-    [recommended, activeTab]
-  );
+  const recommendedFiltered = filterByTab(recommended);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      {/* ── Header ── */}
+      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.logo}>Stave</Text>
         <TouchableOpacity
@@ -134,11 +107,19 @@ export default function HomeScreen() {
           activeOpacity={0.7}
           onPress={() => setMenuVisible(true)}
         >
-          <Ionicons name="person-circle-outline" size={36} color={TEXT_SECONDARY} />
+          {avatarUrl ? (
+            <Image
+              source={{ uri: avatarUrl }}
+              style={{ width: 44, height: 44, borderRadius: 22 }}
+              resizeMode="cover"
+            />
+          ) : (
+            <Ionicons name="person-circle-outline" size={36} color={TEXT_SECONDARY} />
+          )}
         </TouchableOpacity>
       </View>
 
-      {/* ── Tabs ── */}
+      {/* Tabs */}
       <View style={styles.tabRow}>
         {TABS.map((tab) => (
           <TouchableOpacity
@@ -158,25 +139,25 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scroll}
       >
-        {/* ── Burbuja de bienvenida ── */}
+        {/* Bienvenida */}
         <View style={styles.bubbleRow}>
           <View style={styles.bubble} />
           <View style={styles.welcomeText}>
             <Text style={styles.welcomeLine1}>
               Hola <Text style={styles.welcomeUsername}>{username ?? 'usuario'}</Text>,
             </Text>
-            <Text style={styles.welcomeLine2}>que te gustaría ver hoy ?</Text>
+            <Text style={styles.welcomeLine2}>que te gustaría ver hoy?</Text>
           </View>
         </View>
 
-        {/* ── Seguir viendo (recommended del backend) ── */}
+        {/* Seguir viendo — si no hay recomendados usa trending */}
         <SectionBlock
           title="Seguir viendo"
-          items={continueWatching}
-          loading={loadingRecommended}
+          items={recommendedFiltered.length > 0 ? recommendedFiltered : trendingFiltered}
+          loading={loadingRecommended || loadingTrending}
         />
 
-        {/* ── Tendencia (trending del backend) ── */}
+        {/* Tendencia */}
         <SectionBlock
           title="Tendencia"
           items={trendingFiltered}
@@ -184,13 +165,11 @@ export default function HomeScreen() {
         />
       </ScrollView>
 
-      {/* ── Menú lateral ── */}
       <SlideMenu visible={menuVisible} onClose={() => setMenuVisible(false)} />
     </SafeAreaView>
   );
 }
 
-// ─── Bloque de sección con cards ─────────────────────────────────────────────
 function SectionBlock({
   title,
   items,
@@ -200,52 +179,51 @@ function SectionBlock({
   items: ContentItem[];
   loading: boolean;
 }) {
+  if (loading) {
+    return (
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        <ActivityIndicator color={TEXT_SECONDARY} style={{ marginVertical: 16 }} />
+      </View>
+    );
+  }
+
+  if (items.length === 0) return null; // no mostrar placeholders grises
+
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
-      {loading ? (
-        <ActivityIndicator color={TEXT_SECONDARY} style={{ marginVertical: 16 }} />
-      ) : items.length === 0 ? (
-        // Placeholders grises cuando no hay datos aún
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <View style={styles.cardsRow}>
-          {[0, 1, 2].map(i => (
-            <View key={i} style={styles.cardWrapper}>
-              <View style={styles.cardImage} />
-              <Text style={styles.cardLabel}>XXXXX</Text>
-            </View>
+          {items.map((item) => (
+            <TouchableOpacity
+              key={item._id ?? item.id}
+              style={styles.cardWrapper}
+              activeOpacity={0.8}
+              onPress={() =>
+                router.push((`/pelicula/${item._id ?? item.id}`) as any)
+              }
+            >
+              {item.thumbnailUrl ? (
+                <Image
+                  source={{ uri: item.thumbnailUrl }}
+                  style={styles.cardImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={[styles.cardImage, { backgroundColor: '#3D1F6E' }]} />
+              )}
+              <Text style={styles.cardLabel} numberOfLines={1}>
+                {item.title}
+              </Text>
+            </TouchableOpacity>
           ))}
         </View>
-      ) : (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={styles.cardsRow}>
-            {items.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.cardWrapper}
-                activeOpacity={0.8}
-              >
-                {item.thumbnailUrl ? (
-                  <Image
-                    source={{ uri: item.thumbnailUrl }}
-                    style={styles.cardImage}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View style={styles.cardImage} />
-                )}
-                <Text style={styles.cardLabel} numberOfLines={1}>
-                  {item.title}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
-      )}
+      </ScrollView>
     </View>
   );
 }
 
-// ─── Estilos ─────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: BG },
 
@@ -306,7 +284,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: TEXT_PRIMARY,
     lineHeight: 28,
-    textAlign: 'left',
   },
   welcomeUsername: {
     fontWeight: '700',
@@ -317,7 +294,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: TEXT_PRIMARY,
     lineHeight: 28,
-    textAlign: 'left',
   },
   bubble: {
     position: 'absolute',

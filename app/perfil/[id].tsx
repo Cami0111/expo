@@ -1,8 +1,10 @@
 import { api } from '@/api/config';
+import { Colors } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
+import FollowersModal from '@/components/FollowersModal';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -15,36 +17,39 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const PURPLE = '#6C5CE7';
-const BG = '#F8F7FF';
-const CARD = '#FFFFFF';
-const DARK_TEXT = '#1C1C1E';
-const SECONDARY_TEXT = '#3C3C43';
-const MUTED = '#8E8E93';
-const BORDER = '#E5E5EA';
+const LOGROS = [
+  { id: '1', name: 'Binge Watcher', desc: 'Haz visto 50 películas' },
+  { id: '2', name: 'Crítico', desc: 'Haz escrito 20 reseñas' },
+  { id: '3', name: 'Estrella de la comunidad', desc: 'Haz recibido 500 likes' },
+  { id: '4', name: 'Maestro del género', desc: 'Haz visto 20 comedias' },
+];
 
 interface PublicProfile {
-  id: string;
-  username: string;
+  _id?: string;
+  id?: string;
+  username?: string;
+  display_name?: string;
+  displayName?: string;
   bio?: string;
-  avatar?: string;
+  avatarUrl?: string;
   reviewsCount?: number;
+  followersCount?: number;
+  followingCount?: number;
+  followers?: any[];
+  following?: any[];
   isFollowing?: boolean;
+  achievements?: string[];
 }
 
 interface Movie {
-  id: string;
+  _id?: string;
+  id?: string;
   title: string;
+  thumbnailUrl?: string;
   posterUrl?: string;
   poster?: string;
-}
-
-interface Post {
-  id: string;
-  movieTitle?: string;
-  rating?: number;
-  comment?: string;
-  movie?: { title: string };
+  type?: string;
+  year?: string | number;
 }
 
 export default function PublicPerfilScreen() {
@@ -53,7 +58,8 @@ export default function PublicPerfilScreen() {
 
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [favorites, setFavorites] = useState<Movie[]>([]);
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [posts, setPosts] = useState<any[]>([]);
+  const [followModalType, setFollowModalType] = useState<'followers' | 'following' | null>(null);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [isFollowing, setIsFollowing] = useState(false);
@@ -61,16 +67,34 @@ export default function PublicPerfilScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const fetchFullContent = async (item: any): Promise<Movie | null> => {
+    const contentId = item.id ?? item._id ?? item.contentId;
+    if (!contentId) return item;
+    try {
+      if (item.type === 'series') {
+        const res = await api.get(`/series/${contentId}`);
+        return res.data;
+      }
+      try {
+        const res = await api.get(`/movies/${contentId}`);
+        return res.data;
+      } catch {
+        const res = await api.get(`/series/${contentId}`);
+        return res.data;
+      }
+    } catch { return item; }
+  };
+
   const fetchData = useCallback(async () => {
     if (!id) return;
     try {
-      const [profileRes, postsRes, favsRes, followersRes, followingRes] =
+      const [profileRes, favsRes, followersRes, followingRes, postsRes] =
         await Promise.allSettled([
           api.get(`/users/${id}`),
-          api.get(`/users/${id}/posts`),
           api.get(`/users/${id}/favorites`),
           api.get(`/users/${id}/followers`),
           api.get(`/users/${id}/following`),
+          api.get(`/users/${id}/posts`),
         ]);
 
       if (profileRes.status === 'fulfilled') {
@@ -78,29 +102,23 @@ export default function PublicPerfilScreen() {
         setProfile(data);
         setIsFollowing(data.isFollowing ?? false);
       }
-      if (postsRes.status === 'fulfilled') {
-        const d = postsRes.value.data;
-        setPosts(Array.isArray(d) ? d : (d.posts ?? d.data ?? []));
-      }
       if (favsRes.status === 'fulfilled') {
         const d = favsRes.value.data;
-        setFavorites(Array.isArray(d) ? d : (d.movies ?? d.data ?? []));
+        const items: any[] = Array.isArray(d) ? d : (d.data ?? []);
+        const full = await Promise.all(items.map(fetchFullContent));
+        setFavorites(full.filter(Boolean) as Movie[]);
       }
       if (followersRes.status === 'fulfilled') {
         const d = followersRes.value.data;
-        setFollowersCount(
-          typeof d === 'number'
-            ? d
-            : d.count ?? d.total ?? (Array.isArray(d) ? d.length : 0),
-        );
+        setFollowersCount(Array.isArray(d) ? d.length : (d.count ?? d.total ?? 0));
       }
       if (followingRes.status === 'fulfilled') {
         const d = followingRes.value.data;
-        setFollowingCount(
-          typeof d === 'number'
-            ? d
-            : d.count ?? d.total ?? (Array.isArray(d) ? d.length : 0),
-        );
+        setFollowingCount(Array.isArray(d) ? d.length : (d.count ?? d.total ?? 0));
+      }
+      if (postsRes.status === 'fulfilled') {
+        const d = postsRes.value.data;
+        setPosts(Array.isArray(d) ? d : (d.posts ?? d.data ?? []));
       }
     } catch {
     } finally {
@@ -109,14 +127,8 @@ export default function PublicPerfilScreen() {
     }
   }, [id]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchData();
-  };
+  useEffect(() => { fetchData(); }, [fetchData]);
+  const onRefresh = () => { setRefreshing(true); fetchData(); };
 
   const handleFollow = async () => {
     if (!id || followLoading) return;
@@ -125,62 +137,70 @@ export default function PublicPerfilScreen() {
       if (isFollowing) {
         await api.post(`/users/${id}/unfollow`);
         setIsFollowing(false);
-        setFollowersCount((prev) => Math.max(0, prev - 1));
+        setFollowersCount(prev => Math.max(0, prev - 1));
       } else {
         await api.post(`/users/${id}/follow`);
         setIsFollowing(true);
-        setFollowersCount((prev) => prev + 1);
+        setFollowersCount(prev => prev + 1);
       }
-    } catch {
-    } finally {
-      setFollowLoading(false);
-    }
+    } catch {}
+    finally { setFollowLoading(false); }
   };
 
   const isOwnProfile = id === userId;
-
-  const initials = profile?.username
-    ? profile.username.slice(0, 2).toUpperCase()
-    : 'US';
+  const displayName = profile?.display_name ?? profile?.displayName ?? profile?.username ?? 'Usuario';
+  const initial = displayName.charAt(0).toUpperCase();
 
   const stats = [
+    { label: 'Reseñas', value: profile?.reviewsCount ?? 0 },
+    { label: 'Películas', value: favorites.length },
     { label: 'Seguidores', value: followersCount },
     { label: 'Siguiendo', value: followingCount },
-    { label: 'Resenas', value: profile?.reviewsCount ?? posts.length },
   ];
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.safe} edges={['bottom']}>
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={PURPLE} />
+          <ActivityIndicator size="large" color={Colors.ACCENT_PRIMARY} />
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={PURPLE}
-          />
-        }
-      >
-        {/* Header */}
-        <View style={styles.profileHeader}>
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>{initials}</Text>
-          </View>
-          <Text style={styles.username}>{profile?.username ?? 'Usuario'}</Text>
-          {profile?.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Ionicons name="arrow-back" size={24} color={Colors.TEXT_PRIMARY} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>{displayName}</Text>
+        <View style={{ width: 24 }} />
+      </View>
 
-          {!isOwnProfile ? (
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.ACCENT_PRIMARY} />}
+      >
+        {/* Banner + Avatar */}
+        <View style={styles.bannerSection}>
+          <View style={styles.banner} />
+          <View style={styles.avatarWrap}>
+            {profile?.avatarUrl ? (
+              <Image source={{ uri: profile.avatarUrl }} style={styles.avatarImg} contentFit="cover" />
+            ) : (
+              <Text style={styles.avatarInitial}>{initial}</Text>
+            )}
+          </View>
+        </View>
+
+        {/* Profile info */}
+        <View style={styles.profileInfo}>
+          <Text style={styles.displayName}>{displayName}</Text>
+          <Text style={styles.username}>@{profile?.username ?? 'usuario'}</Text>
+          {profile?.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
+          {!isOwnProfile && (
             <TouchableOpacity
               style={[styles.followBtn, isFollowing && styles.followBtnActive]}
               onPress={handleFollow}
@@ -188,261 +208,187 @@ export default function PublicPerfilScreen() {
               activeOpacity={0.85}
             >
               {followLoading ? (
-                <ActivityIndicator
-                  size="small"
-                  color={isFollowing ? PURPLE : '#FFF'}
-                />
+                <ActivityIndicator size="small" color={isFollowing ? Colors.ACCENT_PRIMARY : '#fff'} />
               ) : (
-                <Text
-                  style={[
-                    styles.followBtnText,
-                    isFollowing && styles.followBtnTextActive,
-                  ]}
-                >
+                <Text style={[styles.followBtnText, isFollowing && styles.followBtnTextActive]}>
                   {isFollowing ? 'Siguiendo' : 'Seguir'}
                 </Text>
               )}
             </TouchableOpacity>
-          ) : null}
+          )}
         </View>
 
         {/* Stats */}
-        <View style={styles.statsCard}>
-          {stats.map((s, i) => (
-            <View
-              key={s.label}
-              style={[styles.statItem, i < stats.length - 1 && styles.statDivider]}
-            >
-              <Text style={styles.statValue}>{s.value}</Text>
-              <Text style={styles.statLabel}>{s.label}</Text>
-            </View>
-          ))}
+        <View style={styles.statsRow}>
+          {stats.map((s) => {
+            const tappable = s.label === 'Seguidores' || s.label === 'Siguiendo';
+            const Wrapper = tappable ? TouchableOpacity : View;
+            return (
+              <Wrapper
+                key={s.label}
+                style={styles.statBox}
+                {...(tappable ? {
+                  onPress: () => setFollowModalType(s.label === 'Seguidores' ? 'followers' : 'following'),
+                  activeOpacity: 0.7,
+                } : {})}
+              >
+                <Text style={styles.statValue}>{s.value}</Text>
+                <Text style={styles.statLabel}>{s.label}</Text>
+              </Wrapper>
+            );
+          })}
         </View>
 
-        {/* Favoritas */}
-        <Text style={styles.sectionTitle}>Favoritas</Text>
-        {favorites.length === 0 ? (
-          <Text style={styles.emptyText}>Sin favoritas aun</Text>
-        ) : (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.hListContent}
-          >
-            {favorites.map((m) => (
-              <MovieCard key={m.id} movie={m} />
-            ))}
-          </ScrollView>
-        )}
+        {/* Logros */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="trophy-outline" size={20} color={Colors.ACCENT_SECONDARY} />
+            <Text style={[styles.sectionTitle, { color: Colors.ACCENT_SECONDARY }]}>Logros</Text>
+          </View>
+          <View style={styles.logrosGrid}>
+            {!profile?.achievements || profile.achievements.length === 0 ? (
+              <Text style={styles.emptyText}>Sin logros aún</Text>
+            ) : (
+              profile.achievements.map((achievement, idx) => (
+                <View key={idx.toString()} style={styles.logroCard}>
+                  <Text style={styles.logroName}>🏆 {achievement}</Text>
+                </View>
+              ))
+            )}
+          </View>
+        </View>
 
-        {/* Resenas recientes */}
-        <Text style={styles.sectionTitle}>Resenas Recientes</Text>
-        {posts.length === 0 ? (
-          <Text style={styles.emptyText}>Sin resenas aun</Text>
-        ) : (
-          posts.slice(0, 5).map((p) => <PostRow key={p.id} post={p} />)
-        )}
+        {/* Favoritos */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="heart-outline" size={20} color={Colors.TEXT_PRIMARY} />
+            <Text style={styles.sectionTitle}>Favoritos</Text>
+          </View>
+          {favorites.length === 0 ? (
+            <Text style={styles.emptyText}>Sin contenido</Text>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {favorites.map((m, idx) => (
+                <TouchableOpacity
+                  key={m._id ?? m.id ?? idx.toString()}
+                  style={styles.posterCard}
+                  onPress={() => { const mid = m._id ?? m.id; if (mid) router.push(`/pelicula/${mid}` as any); }}
+                  activeOpacity={0.8}
+                >
+                  {m.thumbnailUrl ?? m.posterUrl ?? m.poster ? (
+                    <Image source={{ uri: (m.thumbnailUrl ?? m.posterUrl ?? m.poster)! }} style={styles.posterImg} contentFit="cover" />
+                  ) : (
+                    <View style={[styles.posterImg, styles.posterPlaceholder]}>
+                      <Ionicons name="film-outline" size={28} color={Colors.ACCENT_PRIMARY} />
+                    </View>
+                  )}
+                  <Text style={styles.posterTitle} numberOfLines={2}>{m.title}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+        {/* Actividad Reciente */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="trending-up-outline" size={20} color={Colors.TEXT_PRIMARY} />
+            <Text style={styles.sectionTitle}>Actividad Reciente</Text>
+          </View>
+          {posts.length === 0 ? (
+            <Text style={styles.emptyText}>Sin actividad aún</Text>
+          ) : (
+            posts.slice(0, 5).map((p: any, idx: number) => {
+              const pId = p._id ?? p.id ?? p.postId ?? `p-${idx}`;
+              const text = p.descripcion ?? p.contenido ?? p.text ?? '';
+              const film = p.tituloFilme ?? p.pelicula ?? p.contentId ?? '';
+              const category = p.categoriaPublicacion ?? p.categoria ?? p.category ?? '';
+              return (
+                <View key={pId} style={styles.actCard}>
+                  {category ? <Text style={styles.actCategory}>{category}</Text> : null}
+                  {film ? <Text style={styles.actFilm}>🎬 {film}</Text> : null}
+                  {text ? <Text style={styles.actText} numberOfLines={2}>{text}</Text> : null}
+                </View>
+              );
+            })
+          )}
+        </View>
       </ScrollView>
+
+      {followModalType !== null && id ? (
+        <FollowersModal
+          visible={!!followModalType}
+          onClose={() => setFollowModalType(null)}
+          userId={Array.isArray(id) ? id[0] : id}
+          type={followModalType}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
 
-function MovieCard({ movie }: { movie: Movie }) {
-  const uri = movie.posterUrl ?? movie.poster;
-  return (
-    <View style={styles.posterCard}>
-      {uri ? (
-        <Image source={{ uri }} style={styles.posterImg} contentFit="cover" />
-      ) : (
-        <View style={[styles.posterImg, styles.posterPlaceholder]}>
-          <Ionicons name="film-outline" size={28} color={PURPLE} />
-        </View>
-      )}
-      <Text style={styles.posterTitle} numberOfLines={2}>
-        {movie.title}
-      </Text>
-    </View>
-  );
-}
-
-function PostRow({ post }: { post: Post }) {
-  const title = post.movie?.title ?? post.movieTitle ?? 'Pelicula';
-  return (
-    <View style={styles.reviewRow}>
-      <View style={styles.reviewIconWrap}>
-        <Ionicons name="star" size={16} color="#FF9500" />
-      </View>
-      <View style={styles.reviewInfo}>
-        <Text style={styles.reviewTitle} numberOfLines={1}>
-          {title}
-        </Text>
-        {post.comment ? (
-          <Text style={styles.reviewComment} numberOfLines={1}>
-            {post.comment}
-          </Text>
-        ) : null}
-      </View>
-      {post.rating != null ? (
-        <View style={styles.ratingBadge}>
-          <Text style={styles.ratingText}>{post.rating}/5</Text>
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: BG },
+  safe: { flex: 1, backgroundColor: Colors.BG_PRIMARY },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scroll: { paddingBottom: 40 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-  profileHeader: {
+  headerBar: {
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: PURPLE,
-    paddingTop: 32,
-    paddingBottom: 28,
-    paddingHorizontal: 24,
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    backgroundColor: Colors.BG_PRIMARY,
   },
-  avatarCircle: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.4)',
+  headerTitle: { fontSize: 16, fontWeight: '700', color: Colors.TEXT_PRIMARY },
+
+  bannerSection: { height: 160, position: 'relative' },
+  banner: { position: 'absolute', top: 0, left: 0, right: 0, height: 120, backgroundColor: Colors.ACCENT_PRIMARY },
+  avatarWrap: {
+    position: 'absolute', bottom: 0, left: 20,
+    width: 80, height: 80, borderRadius: 40,
+    backgroundColor: Colors.ACCENT_PRIMARY,
+    borderWidth: 3, borderColor: Colors.BG_PRIMARY,
+    alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
-  avatarText: { color: '#FFF', fontSize: 30, fontWeight: '800' },
-  username: { color: '#FFF', fontSize: 20, fontWeight: '700', marginBottom: 6 },
-  bio: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: 13,
-    textAlign: 'center',
-    lineHeight: 18,
-    marginBottom: 16,
-  },
+  avatarImg: { width: 80, height: 80 },
+  avatarInitial: { color: Colors.TEXT_PRIMARY, fontSize: 32, fontWeight: '800' },
+
+  profileInfo: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4, gap: 4 },
+  displayName: { fontSize: 20, fontWeight: '700', color: Colors.TEXT_PRIMARY },
+  username: { fontSize: 13, color: Colors.TEXT_SECONDARY },
+  bio: { fontSize: 14, color: Colors.TEXT_SECONDARY, marginTop: 4, lineHeight: 20 },
 
   followBtn: {
-    marginTop: 14,
-    paddingHorizontal: 32,
-    paddingVertical: 10,
-    borderRadius: 40,
-    backgroundColor: '#FFFFFF',
-    minWidth: 110,
-    alignItems: 'center',
+    marginTop: 10, alignSelf: 'flex-start',
+    paddingHorizontal: 24, paddingVertical: 8,
+    borderRadius: 20, backgroundColor: Colors.ACCENT_PRIMARY,
   },
-  followBtnActive: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.6)',
-  },
-  followBtnText: {
-    color: PURPLE,
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  followBtnTextActive: {
-    color: '#FFF',
-  },
+  followBtnActive: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: Colors.ACCENT_PRIMARY },
+  followBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  followBtnTextActive: { color: Colors.ACCENT_PRIMARY },
 
-  statsCard: {
-    flexDirection: 'row',
-    backgroundColor: CARD,
-    marginHorizontal: 20,
-    borderRadius: 16,
-    marginTop: -20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
-    marginBottom: 28,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 16,
-  },
-  statDivider: {
-    borderRightWidth: 1,
-    borderRightColor: BORDER,
-  },
-  statValue: { fontSize: 22, fontWeight: '800', color: DARK_TEXT },
-  statLabel: { fontSize: 12, color: MUTED, marginTop: 3 },
+  statsRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 8, marginVertical: 20 },
+  statBox: { flex: 1, backgroundColor: Colors.BG_CARD, borderRadius: 12, padding: 12, alignItems: 'center' },
+  statValue: { fontSize: 22, fontWeight: '700', color: Colors.TEXT_PRIMARY },
+  statLabel: { fontSize: 11, color: Colors.TEXT_SECONDARY, marginTop: 2, textAlign: 'center' },
 
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: DARK_TEXT,
-    marginBottom: 14,
-    marginHorizontal: 20,
-  },
-  emptyText: {
-    color: MUTED,
-    fontSize: 13,
-    marginHorizontal: 20,
-    marginBottom: 24,
-  },
+  section: { paddingHorizontal: 20, marginBottom: 24 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: Colors.TEXT_PRIMARY },
+  emptyText: { color: Colors.TEXT_MUTED, fontSize: 13 },
 
-  hListContent: {
-    paddingHorizontal: 20,
-    gap: 12,
-    paddingBottom: 4,
-    marginBottom: 28,
-  },
+  logrosGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  logroCard: { backgroundColor: Colors.BG_CARD, borderRadius: 10, padding: 12, width: '47%', gap: 4 },
+  logroName: { color: Colors.TEXT_PRIMARY, fontSize: 13, fontWeight: '700' },
+  logroDesc: { color: Colors.TEXT_MUTED, fontSize: 11 },
 
-  posterCard: { width: 100 },
-  posterImg: {
-    width: 100,
-    height: 150,
-    borderRadius: 10,
-    marginBottom: 6,
-  },
-  posterPlaceholder: {
-    backgroundColor: PURPLE + '1A',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  posterTitle: {
-    fontSize: 11,
-    color: SECONDARY_TEXT,
-    textAlign: 'center',
-    fontWeight: '600',
-  },
+  posterCard: { width: 120, marginRight: 12 },
+  posterImg: { width: 120, height: 180, borderRadius: 12, marginBottom: 6 },
+  posterPlaceholder: { backgroundColor: Colors.BG_SECONDARY, alignItems: 'center', justifyContent: 'center' },
+  posterTitle: { color: Colors.TEXT_PRIMARY, fontSize: 11, textAlign: 'center', paddingHorizontal: 6 },
 
-  reviewRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: CARD,
-    marginHorizontal: 20,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 8,
-    gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  reviewIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: '#FF950018',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  reviewInfo: { flex: 1 },
-  reviewTitle: { fontSize: 14, fontWeight: '600', color: DARK_TEXT },
-  reviewComment: { fontSize: 12, color: MUTED, marginTop: 2 },
-  ratingBadge: {
-    backgroundColor: PURPLE + '18',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  ratingText: { fontSize: 12, fontWeight: '700', color: PURPLE },
+  actCard: { backgroundColor: Colors.BG_CARD, borderRadius: 10, padding: 12, marginBottom: 8, gap: 4 },
+  actCategory: { color: Colors.ACCENT_PRIMARY, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
+  actFilm: { color: Colors.TEXT_SECONDARY, fontSize: 12 },
+  actText: { color: Colors.TEXT_PRIMARY, fontSize: 13 },
 });

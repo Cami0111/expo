@@ -1,10 +1,12 @@
 import { api } from '@/api/config';
 import EditProfileModal from '@/components/EditProfileModal';
+import FollowersModal from '@/components/FollowersModal';
 import SlideMenu from '@/components/slide-menu';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { router } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -18,7 +20,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface UserProfile {
   id: string;
+  _id?: string;
   username: string;
+  display_name?: string;
   displayName?: string;
   bio?: string;
   avatarUrl?: string;
@@ -26,6 +30,10 @@ interface UserProfile {
   moviesCount?: number;
   watchlistCount?: number;
   followersCount?: number;
+  followingCount?: number;
+  followers?: string[];
+  following?: string[];
+  achievements?: string[];
 }
 
 interface Movie {
@@ -34,6 +42,9 @@ interface Movie {
   title: string;
   posterUrl?: string;
   poster?: string;
+  image?: string;
+  thumbnail?: string;
+  thumbnailUrl?: string;
   year?: number;
   type?: string;
   duration?: number;
@@ -41,19 +52,22 @@ interface Movie {
 
 interface ActivityItem {
   _id?: string;
-  id: string;
+  id?: string;
   movieTitle?: string;
-  rating: number;
+  rating?: number;
   movie?: { title: string };
   createdAt?: string;
+  descripcion?: string;
+  contenido?: string;
+  text?: string;
+  tituloFilme?: string;
+  pelicula?: string;
+  categoriaPublicacion?: string;
+  categoria?: string;
+  category?: string;
+  likes?: number;
 }
 
-const LOGROS = [
-  { id: '1', name: 'Binge Watcher', desc: 'Haz visto 50 películas' },
-  { id: '2', name: 'Crítico', desc: 'Haz escrito 20 reseñas' },
-  { id: '3', name: 'Estrella de la comunidad', desc: 'Haz recibido 500 likes' },
-  { id: '4', name: 'Maestro del género', desc: 'Haz visto 20 comedias' },
-];
 
 function StarRow({ rating, max = 5 }: { rating: number; max?: number }) {
   return (
@@ -83,10 +97,10 @@ const sh = StyleSheet.create({
   title: { fontSize: 18, fontWeight: '700', color: Colors.TEXT_PRIMARY },
 });
 
-function PosterCard({ movie }: { movie: Movie }) {
-  const uri = movie.posterUrl ?? movie.poster;
+function PosterCard({ movie, onPress }: { movie: Movie; onPress?: () => void }) {
+  const uri = movie.posterUrl ?? movie.poster ?? movie.image ?? movie.thumbnailUrl ?? movie.thumbnail;
   return (
-    <View style={posterSt.card}>
+    <TouchableOpacity style={posterSt.card} onPress={onPress} activeOpacity={0.8}>
       {uri ? (
         <Image source={{ uri }} style={posterSt.img} contentFit="cover" />
       ) : (
@@ -95,22 +109,22 @@ function PosterCard({ movie }: { movie: Movie }) {
         </View>
       )}
       <Text style={posterSt.title} numberOfLines={2}>{movie.title}</Text>
-    </View>
+    </TouchableOpacity>
   );
 }
 const posterSt = StyleSheet.create({
-  card: { width: 160, marginRight: 12 },
-  img: { width: 160, height: 220, borderRadius: 12, marginBottom: 6 },
+  card: { width: 120, marginRight: 12 },
+  img: { width: 120, height: 180, borderRadius: 12, marginBottom: 6 },
   placeholder: { backgroundColor: Colors.BG_SECONDARY, alignItems: 'center', justifyContent: 'center' },
   title: { color: Colors.TEXT_PRIMARY, fontSize: 11, textAlign: 'center', paddingHorizontal: 6, paddingBottom: 6 },
 });
 
-function HistoryCard({ movie }: { movie: Movie }) {
-  const uri = movie.posterUrl ?? movie.poster;
+function HistoryCard({ movie, onPress }: { movie: Movie; onPress?: () => void }) {
+  const uri = movie.posterUrl ?? movie.poster ?? movie.image ?? movie.thumbnailUrl ?? movie.thumbnail;
   const meta = [movie.type, movie.year, movie.duration ? `${movie.duration} min` : null]
     .filter(Boolean).join(' · ');
   return (
-    <View style={histSt.card}>
+    <TouchableOpacity style={histSt.card} onPress={onPress} activeOpacity={0.8}>
       {uri ? (
         <Image source={{ uri }} style={histSt.thumb} contentFit="cover" />
       ) : (
@@ -123,7 +137,7 @@ function HistoryCard({ movie }: { movie: Movie }) {
         {meta ? <Text style={histSt.meta}>{meta}</Text> : null}
         <StarRow rating={0} />
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 const histSt = StyleSheet.create({
@@ -143,14 +157,22 @@ const histSt = StyleSheet.create({
 });
 
 function ActivityCard({ item }: { item: ActivityItem }) {
-  const title = item.movie?.title ?? item.movieTitle ?? 'Película';
+  const title = item.movie?.title ?? item.movieTitle ?? item.tituloFilme ?? item.pelicula ?? '';
+  const text = item.descripcion ?? item.contenido ?? item.text ?? '';
+  const category = item.categoriaPublicacion ?? item.categoria ?? item.category ?? '';
   const dateStr = item.createdAt
     ? new Date(item.createdAt).toLocaleDateString('es', { day: 'numeric', month: 'short' })
     : null;
   return (
     <View style={actSt.card}>
-      <Text style={actSt.title}>Reseña de {title}</Text>
-      <StarRow rating={item.rating} />
+      {category ? (
+        <Text style={{ color: Colors.ACCENT_PRIMARY, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' }}>
+          {category}
+        </Text>
+      ) : null}
+      {title ? <Text style={actSt.title}>🎬 {title}</Text> : null}
+      {item.rating && item.rating > 0 ? <StarRow rating={item.rating} /> : null}
+      {text ? <Text style={actSt.desc} numberOfLines={2}>{text}</Text> : null}
       {dateStr ? <Text style={actSt.time}>{dateStr}</Text> : null}
     </View>
   );
@@ -164,6 +186,7 @@ const actSt = StyleSheet.create({
     gap: 6,
   },
   title: { color: Colors.TEXT_PRIMARY, fontSize: 13, fontWeight: '700' },
+  desc: { color: Colors.TEXT_SECONDARY, fontSize: 12, lineHeight: 18 },
   time: { color: Colors.TEXT_MUTED, fontSize: 11 },
 });
 
@@ -171,6 +194,7 @@ export default function PerfilScreen() {
   const { userId } = useAuth();
   const [menuVisible, setMenuVisible] = useState(false);
   const [editVisible, setEditVisible] = useState(false);
+  const [followModalType, setFollowModalType] = useState<'followers' | 'following' | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [favorites, setFavorites] = useState<Movie[]>([]);
   const [watchlist, setWatchlist] = useState<Movie[]>([]);
@@ -178,12 +202,30 @@ export default function PerfilScreen() {
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const fetchFullContent = async (item: { contentId: string; type?: string }): Promise<Movie | null> => {
+    if (item.type === 'series') {
+      try {
+        const res = await api.get(`/series/${item.contentId}`);
+        return res.data ?? null;
+      } catch { return null; }
+    }
+    try {
+      const res = await api.get(`/movies/${item.contentId}`);
+      return res.data ?? null;
+    } catch {}
+    try {
+      const res = await api.get(`/series/${item.contentId}`);
+      return res.data ?? null;
+    } catch {}
+    return null;
+  };
+
   const fetchData = useCallback(async () => {
     try {
       const [profileRes, favRes, watchRes, histRes, actRes] = await Promise.allSettled([
         api.get('/users/profile'),
-        api.get(`/users/${userId}/favorites`),
-        api.get(`/users/${userId}/watchlist`),
+        api.get('/favorites'),
+        api.get('/watchlist'),
         api.get('/users/history'),
         api.get(`/users/${userId}/posts`),
       ]);
@@ -195,18 +237,52 @@ export default function PerfilScreen() {
       }
       if (favRes.status === 'fulfilled') {
         const d = favRes.value.data;
-        setFavorites(Array.isArray(d) ? d : (d.movies ?? d.data ?? []));
+        const items = Array.isArray(d) ? d : (d.data ?? []);
+        const full = await Promise.all(
+          items.map((item: any) => fetchFullContent({
+            contentId: item.id ?? item._id,
+            type: item.type,
+          }))
+        );
+        setFavorites(full.filter((r): r is Movie => r !== null));
       }
       if (watchRes.status === 'fulfilled') {
         const d = watchRes.value.data;
-        setWatchlist(Array.isArray(d) ? d : (d.movies ?? d.data ?? []));
+        const items = Array.isArray(d) ? d : (d.data ?? []);
+        const full = await Promise.all(
+          items.map((item: any) => fetchFullContent({
+            contentId: item.id ?? item._id,
+            type: item.type,
+          }))
+        );
+        setWatchlist(full.filter((r): r is Movie => r !== null));
       }
       if (histRes.status === 'fulfilled') {
         const d = histRes.value.data;
-        setHistory(Array.isArray(d) ? d : (d.movies ?? d.data ?? []));
+        const raw: any[] = Array.isArray(d) ? d : (d.movies ?? d.data ?? []);
+        const resolved = await Promise.all(
+          raw.map(async (item: any) => {
+            if (typeof item === 'string') {
+              try {
+                const res = await api.get(`/movies/${item}`);
+                return res.data;
+              } catch {
+                try {
+                  const res = await api.get(`/series/${item}`);
+                  return res.data;
+                } catch {
+                  return null;
+                }
+              }
+            }
+            return item;
+          })
+        );
+        setHistory(resolved.filter((r): r is Movie => r !== null && (r._id ?? r.id)));
       }
       if (actRes.status === 'fulfilled') {
         const d = actRes.value.data;
+        console.log('POSTS RAW:', JSON.stringify(d).slice(0, 300));
         setActivity(Array.isArray(d) ? d : (d.posts ?? d.data ?? []));
       }
     } catch {
@@ -217,19 +293,26 @@ export default function PerfilScreen() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const displayName = profile?.displayName ?? profile?.username ?? 'Usuario';
+  const displayName = profile?.display_name ?? profile?.displayName ?? profile?.username ?? 'Usuario';
   const initial = displayName.charAt(0).toUpperCase();
 
-  const stats = [
+  const followersCount = profile?.followersCount ?? profile?.followers?.length ?? 0;
+  const followingCount = profile?.followingCount ?? profile?.following?.length ?? 0;
+
+  const stats: Array<{ label: string; value: number; onPress?: () => void }> = [
     { label: 'Reseñas', value: profile?.reviewsCount ?? activity.length },
     { label: 'Películas', value: profile?.moviesCount ?? favorites.length },
-    { label: 'Por Ver', value: profile?.watchlistCount ?? watchlist.length },
-    { label: 'Seguidores', value: profile?.followersCount ?? 0 },
+    { label: 'Seguidores', value: followersCount, onPress: () => setFollowModalType('followers') },
+    { label: 'Siguiendo', value: followingCount, onPress: () => setFollowModalType('following') },
   ];
+
+  const navToMovie = (movie: Movie) => {
+    const id = (movie._id ?? movie.id ?? '').toString();
+    if (id) router.push((`/pelicula/${id}`) as any);
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      {/* Header bar */}
       <View style={styles.headerBar}>
         <Text style={styles.appName}>Stave</Text>
         <TouchableOpacity
@@ -237,7 +320,11 @@ export default function PerfilScreen() {
           onPress={() => setMenuVisible(true)}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Text style={styles.avatarBtnText}>{initial}</Text>
+          {profile?.avatarUrl ? (
+            <Image source={{ uri: profile.avatarUrl }} style={{ width: 40, height: 40, borderRadius: 20 }} contentFit="cover" />
+          ) : (
+            <Text style={styles.avatarBtnText}>{initial}</Text>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -247,7 +334,6 @@ export default function PerfilScreen() {
         </View>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-          {/* Banner + Avatar overlap container */}
           <View style={styles.bannerSection}>
             <View style={styles.banner} />
             <View style={styles.avatarWrap}>
@@ -259,7 +345,6 @@ export default function PerfilScreen() {
             </View>
           </View>
 
-          {/* Profile info */}
           <View style={styles.profileInfo}>
             <Text style={styles.displayName}>{displayName}</Text>
             <Text style={styles.username}>@{profile?.username ?? 'usuario'}</Text>
@@ -270,30 +355,37 @@ export default function PerfilScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Stats row */}
           <View style={styles.statsRow}>
-            {stats.map((s) => (
-              <View key={s.label} style={styles.statBox}>
-                <Text style={styles.statValue}>{s.value}</Text>
-                <Text style={styles.statLabel}>{s.label}</Text>
-              </View>
-            ))}
+            {stats.map((s) =>
+              s.onPress ? (
+                <TouchableOpacity key={s.label} style={styles.statBox} onPress={s.onPress} activeOpacity={0.7}>
+                  <Text style={styles.statValue}>{s.value}</Text>
+                  <Text style={styles.statLabel}>{s.label}</Text>
+                </TouchableOpacity>
+              ) : (
+                <View key={s.label} style={styles.statBox}>
+                  <Text style={styles.statValue}>{s.value}</Text>
+                  <Text style={styles.statLabel}>{s.label}</Text>
+                </View>
+              )
+            )}
           </View>
 
-          {/* Logros */}
           <View style={styles.section}>
             <SectionHeader icon="trophy-outline" label="Logros" color={Colors.ACCENT_SECONDARY} />
             <View style={styles.logrosGrid}>
-              {LOGROS.map((l) => (
-                <View key={l.id} style={styles.logroCard}>
-                  <Text style={styles.logroName}>{l.name}</Text>
-                  <Text style={styles.logroDesc}>{l.desc}</Text>
-                </View>
-              ))}
+              {(profile?.achievements ?? []).length === 0 ? (
+                <Text style={styles.emptyText}>Sin logros aún</Text>
+              ) : (
+                (profile?.achievements ?? []).map((achievement, idx) => (
+                  <View key={idx.toString()} style={styles.logroCard}>
+                    <Text style={styles.logroName}>🏆 {achievement}</Text>
+                  </View>
+                ))
+              )}
             </View>
           </View>
 
-          {/* Favoritos */}
           <View style={styles.section}>
             <SectionHeader icon="heart-outline" label="Favoritos" />
             {favorites.length === 0 ? (
@@ -301,13 +393,16 @@ export default function PerfilScreen() {
             ) : (
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 {favorites.map((m, index) => (
-                  <PosterCard key={m._id ?? m.id ?? index.toString()} movie={m} />
+                  <PosterCard
+                    key={m._id ?? m.id ?? index.toString()}
+                    movie={m}
+                    onPress={() => navToMovie(m)}
+                  />
                 ))}
               </ScrollView>
             )}
           </View>
 
-          {/* Por Ver */}
           <View style={styles.section}>
             <SectionHeader icon="list-outline" label="Por ver" />
             {watchlist.length === 0 ? (
@@ -315,25 +410,31 @@ export default function PerfilScreen() {
             ) : (
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 {watchlist.map((m, index) => (
-                  <PosterCard key={m._id ?? m.id ?? index.toString()} movie={m} />
+                  <PosterCard
+                    key={m._id ?? m.id ?? index.toString()}
+                    movie={m}
+                    onPress={() => navToMovie(m)}
+                  />
                 ))}
               </ScrollView>
             )}
           </View>
 
-          {/* Historial */}
           <View style={styles.section}>
             <SectionHeader icon="time-outline" label="Historial" />
             {history.length === 0 ? (
               <Text style={styles.emptyText}>Sin contenido</Text>
             ) : (
               history.slice(0, 10).map((m, index) => (
-                <HistoryCard key={m._id ?? m.id ?? index.toString()} movie={m} />
+                <HistoryCard
+                  key={m._id ?? m.id ?? index.toString()}
+                  movie={m}
+                  onPress={() => navToMovie(m)}
+                />
               ))
             )}
           </View>
 
-          {/* Actividad Reciente */}
           <View style={styles.section}>
             <SectionHeader icon="trending-up-outline" label="Actividad Reciente" />
             {activity.length === 0 ? (
@@ -351,13 +452,22 @@ export default function PerfilScreen() {
       <EditProfileModal
         visible={editVisible}
         onClose={() => setEditVisible(false)}
-        currentDisplayName={profile?.displayName ?? profile?.username ?? ''}
+        currentDisplayName={profile?.display_name ?? profile?.displayName ?? profile?.username ?? ''}
         currentBio={profile?.bio ?? ''}
+        currentAvatarUrl={profile?.avatarUrl ?? ''}
         onSaved={(dn: string, bio: string) => {
-          setProfile((p) => (p ? { ...p, displayName: dn, bio } : p));
+          setProfile((p) => (p ? { ...p, displayName: dn, display_name: dn, bio } : p));
           setEditVisible(false);
         }}
       />
+      {followModalType !== null && userId ? (
+        <FollowersModal
+          visible={!!followModalType}
+          onClose={() => setFollowModalType(null)}
+          userId={userId}
+          type={followModalType}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -386,7 +496,6 @@ const styles = StyleSheet.create({
   },
   avatarBtnText: { color: Colors.TEXT_PRIMARY, fontWeight: '700', fontSize: 16 },
 
-  // Banner: 120px visible + 40px padding for avatar overlap = 160px total
   bannerSection: { height: 160, position: 'relative' },
   banner: {
     position: 'absolute',
@@ -448,11 +557,7 @@ const styles = StyleSheet.create({
   section: { paddingHorizontal: 20, marginBottom: 24 },
   emptyText: { color: Colors.TEXT_MUTED, fontSize: 13 },
 
-  logrosGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
+  logrosGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   logroCard: {
     backgroundColor: Colors.BG_CARD,
     borderRadius: 10,

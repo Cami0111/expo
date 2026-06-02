@@ -17,7 +17,7 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
     if (isLoading) return;
     const inAuthGroup = segments[0] === 'auth';
     if (!isAuthenticated && !inAuthGroup) {
-      router.replace('/auth/login');
+      router.replace('/auth');
     } else if (isAuthenticated && inAuthGroup) {
       router.replace('/home/home');
     }
@@ -35,7 +35,7 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
 }
 
 export const unstable_settings = {
-  anchor: 'auth/index',
+  anchor: 'auth',
 };
 
 export default function RootLayout() {
@@ -48,9 +48,7 @@ export default function RootLayout() {
           <NavigationGuard>
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="auth/index" />
-              <Stack.Screen name="auth/login" />
-              <Stack.Screen name="auth/register" />
+              <Stack.Screen name="auth" />
               <Stack.Screen name="modal" options={{ presentation: 'modal', headerShown: true, title: 'Modal' }} />
             </Stack>
           </NavigationGuard>

@@ -1,12 +1,15 @@
 import { api } from '@/api/config';
 import SlideMenu from '@/components/slide-menu';
 import { Colors } from '@/constants/theme';
+import { useAuth } from '@/context/auth-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { router } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
@@ -17,23 +20,57 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 type FilterType = 'favoritos' | 'porver';
 
-interface Movie {
-  id: string;
+interface ContentItem {
+  _id?: string;
+  id?: string;
   title: string;
-  posterUrl?: string;
-  poster?: string;
-  year?: number;
+  thumbnailUrl?: string;
+  year?: string | number;
+  genre?: string;
+  type?: string;
 }
 
 const NUM_COLUMNS = 3;
 
+async function fetchFullContent(
+  item: { contentId: string; type?: string }
+): Promise<ContentItem | null> {
+  if (item.type === 'series') {
+    try {
+      const res = await api.get(`/series/${item.contentId}`);
+      return res.data ?? null;
+    } catch { return null; }
+  }
+  try {
+    const res = await api.get(`/movies/${item.contentId}`);
+    return res.data ?? null;
+  } catch { }
+  try {
+    const res = await api.get(`/series/${item.contentId}`);
+    return res.data ?? null;
+  } catch { }
+  return null;
+}
+
 export default function FavoritosScreen() {
+  const { userId } = useAuth();
   const [filter, setFilter] = useState<FilterType>('favoritos');
-  const [favorites, setFavorites] = useState<Movie[]>([]);
-  const [watchlist, setWatchlist] = useState<Movie[]>([]);
+  const [favorites, setFavorites] = useState<ContentItem[]>([]);
+  const [watchlist, setWatchlist] = useState<ContentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!userId) return;
+    api.get('/users/profile')
+      .then(res => {
+        const url = res.data?.avatarUrl;
+        if (url && url.length > 0) setAvatarUrl(url);
+      })
+      .catch(() => {});
+  }, [userId]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -41,13 +78,28 @@ export default function FavoritosScreen() {
         api.get('/favorites'),
         api.get('/watchlist'),
       ]);
+
       if (favRes.status === 'fulfilled') {
         const d = favRes.value.data;
-        setFavorites(Array.isArray(d) ? d : (d.movies ?? d.data ?? []));
+        const items = Array.isArray(d) ? d : (d.data ?? []);
+        const full = await Promise.all(
+          items.map((item: any) => fetchFullContent({
+            contentId: item.id ?? item._id,
+            type: item.type,
+          }))
+        );
+        setFavorites(full.filter((r): r is ContentItem => r !== null));
       }
       if (watchRes.status === 'fulfilled') {
         const d = watchRes.value.data;
-        setWatchlist(Array.isArray(d) ? d : (d.movies ?? d.data ?? []));
+        const items = Array.isArray(d) ? d : (d.data ?? []);
+        const full = await Promise.all(
+          items.map((item: any) => fetchFullContent({
+            contentId: item.id ?? item._id,
+            type: item.type,
+          }))
+        );
+        setWatchlist(full.filter((r): r is ContentItem => r !== null));
       }
     } catch {
     } finally {
@@ -61,21 +113,18 @@ export default function FavoritosScreen() {
 
   const displayed = filter === 'favoritos' ? favorites : watchlist;
 
-  const renderMovie = ({ item }: { item: Movie }) => {
-    const uri = item.posterUrl ?? item.poster;
-    return (
-      <TouchableOpacity style={styles.gridItem} activeOpacity={0.8}>
-        {uri ? (
-          <Image source={{ uri }} style={styles.gridPoster} contentFit="cover" />
-        ) : (
-          <View style={[styles.gridPoster, styles.gridPlaceholder]}>
-            <Ionicons name="film-outline" size={24} color={Colors.ACCENT_PRIMARY} />
-          </View>
-        )}
-        <Text style={styles.gridTitle} numberOfLines={2}>{item.title}</Text>
-      </TouchableOpacity>
-    );
-  };
+  const renderMovie = ({ item }: { item: ContentItem }) => (
+    <Pressable style={styles.gridItem} onPress={() => router.push(`/pelicula/${item._id ?? item.id}`)}>
+      {item.thumbnailUrl ? (
+        <Image source={{ uri: item.thumbnailUrl }} style={styles.gridPoster} contentFit="cover" />
+      ) : (
+        <View style={[styles.gridPoster, styles.gridPlaceholder]}>
+          <Ionicons name="film-outline" size={24} color={Colors.ACCENT_PRIMARY} />
+        </View>
+      )}
+      <Text style={styles.gridTitle} numberOfLines={2}>{item.title}</Text>
+    </Pressable>
+  );
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -85,7 +134,15 @@ export default function FavoritosScreen() {
           onPress={() => setMenuVisible(true)}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons name="person-circle-outline" size={28} color={Colors.ACCENT_PRIMARY} />
+          {avatarUrl ? (
+            <Image
+              source={{ uri: avatarUrl }}
+              style={{ width: 32, height: 32, borderRadius: 16 }}
+              contentFit="cover"
+            />
+          ) : (
+            <Ionicons name="person-circle-outline" size={28} color={Colors.ACCENT_PRIMARY} />
+          )}
         </TouchableOpacity>
       </View>
 
@@ -96,7 +153,7 @@ export default function FavoritosScreen() {
       ) : (
         <FlatList
           data={displayed}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item, idx) => item._id ?? item.id ?? `item-${idx}`}
           renderItem={renderMovie}
           numColumns={NUM_COLUMNS}
           contentContainerStyle={styles.listContent}
@@ -112,43 +169,27 @@ export default function FavoritosScreen() {
           ListHeaderComponent={
             <View style={styles.filterRow}>
               <TouchableOpacity
-                style={[styles.filterBtn, filter === 'porver' && styles.filterBtnActive]}
+                style={[
+                  styles.filterBtn,
+                  { backgroundColor: filter === 'porver' ? '#821EED' : '#2C2EAC' },
+                ]}
                 onPress={() => setFilter('porver')}
                 activeOpacity={0.8}
               >
-                <Ionicons
-                  name="time-outline"
-                  size={18}
-                  color={filter === 'porver' ? Colors.TEXT_PRIMARY : Colors.ACCENT_PRIMARY}
-                />
-                <Text style={[styles.filterBtnText, filter === 'porver' && styles.filterBtnTextActive]}>
-                  Por Ver
-                </Text>
-                <View style={[styles.countBadge, filter === 'porver' && styles.countBadgeActive]}>
-                  <Text style={[styles.countText, filter === 'porver' && styles.countTextActive]}>
-                    {watchlist.length}
-                  </Text>
-                </View>
+                <Text style={styles.filterCount}>{watchlist.length}</Text>
+                <Text style={styles.filterLabel}>Por Ver</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.filterBtn, filter === 'favoritos' && styles.filterBtnActive]}
+                style={[
+                  styles.filterBtn,
+                  { backgroundColor: filter === 'favoritos' ? '#821EED' : '#B62C2E' },
+                ]}
                 onPress={() => setFilter('favoritos')}
                 activeOpacity={0.8}
               >
-                <Ionicons
-                  name={filter === 'favoritos' ? 'heart' : 'heart-outline'}
-                  size={18}
-                  color={filter === 'favoritos' ? Colors.TEXT_PRIMARY : Colors.ACCENT_PRIMARY}
-                />
-                <Text style={[styles.filterBtnText, filter === 'favoritos' && styles.filterBtnTextActive]}>
-                  Favoritos
-                </Text>
-                <View style={[styles.countBadge, filter === 'favoritos' && styles.countBadgeActive]}>
-                  <Text style={[styles.countText, filter === 'favoritos' && styles.countTextActive]}>
-                    {favorites.length}
-                  </Text>
-                </View>
+                <Text style={styles.filterCount}>{favorites.length}</Text>
+                <Text style={styles.filterLabel}>Favoritos</Text>
               </TouchableOpacity>
             </View>
           }
@@ -195,32 +236,12 @@ const styles = StyleSheet.create({
   filterRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
   filterBtn: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.BG_CARD,
     borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 10,
-    gap: 7,
-    borderWidth: 1,
-    borderColor: Colors.BORDER_COLOR,
+    padding: 20,
+    alignItems: 'center',
   },
-  filterBtnActive: {
-    backgroundColor: Colors.ACCENT_PRIMARY,
-    borderColor: Colors.ACCENT_PRIMARY,
-  },
-  filterBtnText: { fontSize: 14, fontWeight: '700', color: Colors.ACCENT_PRIMARY },
-  filterBtnTextActive: { color: Colors.TEXT_PRIMARY },
-  countBadge: {
-    backgroundColor: Colors.ACCENT_PRIMARY + '28',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  countBadgeActive: { backgroundColor: 'rgba(255,255,255,0.25)' },
-  countText: { fontSize: 12, fontWeight: '700', color: Colors.ACCENT_PRIMARY },
-  countTextActive: { color: Colors.TEXT_PRIMARY },
+  filterCount: { color: '#fff', fontSize: 28, fontWeight: '700' },
+  filterLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 13 },
   gridItem: { flex: 1 },
   gridPoster: { width: '100%', aspectRatio: 2 / 3, borderRadius: 10, marginBottom: 6 },
   gridPlaceholder: {

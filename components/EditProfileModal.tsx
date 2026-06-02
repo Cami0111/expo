@@ -1,6 +1,7 @@
 import { api } from '@/api/config';
 import { Colors } from '@/constants/theme';
-// TODO: run: npx expo install expo-image-picker
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -19,6 +20,7 @@ interface Props {
   onClose: () => void;
   currentDisplayName: string;
   currentBio: string;
+  currentAvatarUrl?: string;
   onSaved: (displayName: string, bio: string) => void;
 }
 
@@ -27,36 +29,69 @@ export default function EditProfileModal({
   onClose,
   currentDisplayName,
   currentBio,
+  currentAvatarUrl,
   onSaved,
 }: Props) {
   const [displayName, setDisplayName] = useState(currentDisplayName);
   const [bio, setBio] = useState(currentBio);
+  const [avatarUri, setAvatarUri] = useState(currentAvatarUrl ?? '');
+  const [avatarBase64, setAvatarBase64] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (visible) {
       setDisplayName(currentDisplayName);
       setBio(currentBio);
+      setAvatarUri(currentAvatarUrl ?? '');
+      setAvatarBase64('');
     }
-  }, [visible, currentDisplayName, currentBio]);
+  }, [visible, currentDisplayName, currentBio, currentAvatarUrl]);
 
   const initial = displayName.charAt(0).toUpperCase() || '?';
 
-  const handlePickImage = () => {
-    Alert.alert('Instala expo-image-picker para esta función');
+  const handlePickImage = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permiso requerido', 'Necesitamos acceso a tu galería');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.5,
+      base64: true,
+    });
+    if (!result.canceled) {
+      const asset = result.assets[0];
+      setAvatarUri(asset.uri);
+      if (asset.base64) {
+        const mime = asset.mimeType ?? 'image/jpeg';
+        setAvatarBase64(`data:${mime};base64,${asset.base64}`);
+      }
+    }
   };
 
   const handleSave = async () => {
     setLoading(true);
     try {
-      await api.put('/users/profile', {
-        displayName: displayName.trim(),
+      const body: any = {
+        display_name: displayName.trim(),
         bio: bio.trim(),
-      });
+      };
+      if (avatarBase64) {
+        body.avatarUrl = avatarBase64;
+      } else if (avatarUri && avatarUri.startsWith('https://')) {
+        body.avatarUrl = avatarUri;
+      }
+      await api.put('/users/profile', body);
       onSaved(displayName.trim(), bio.trim());
       onClose();
     } catch (err: any) {
-      Alert.alert('Error', err.message ?? 'No se pudo guardar');
+      const msg = err.response?.data?.message;
+      const detail = Array.isArray(msg) ? msg.join(', ') : (msg ?? 'No se pudo guardar');
+      Alert.alert('Error', `${detail}`);
+      console.log('Save error:', JSON.stringify(err.response?.data));
     } finally {
       setLoading(false);
     }
@@ -75,12 +110,32 @@ export default function EditProfileModal({
           {/* Avatar row */}
           <View style={styles.avatarRow}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{initial}</Text>
+              {avatarUri ? (
+                <Image source={{ uri: avatarUri }} style={styles.avatarImg} contentFit="cover" />
+              ) : (
+                <Text style={styles.avatarText}>{initial}</Text>
+              )}
             </View>
-            <TouchableOpacity style={styles.avatarInfo} onPress={handlePickImage} activeOpacity={0.7}>
-              <Text style={styles.changePhotoLabel}>Cambiar foto</Text>
-              <Text style={styles.comingSoon}>(próximamente)</Text>
-            </TouchableOpacity>
+            <View style={styles.avatarInfo}>
+              <TouchableOpacity
+                style={styles.pickImageBtn}
+                onPress={handlePickImage}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.pickImageText}>📷 Subir desde galería</Text>
+              </TouchableOpacity>
+              <Text style={styles.avatarUrlHint}>— o pega una URL —</Text>
+              <TextInput
+                style={styles.avatarUrlInput}
+                value={avatarBase64 ? '' : avatarUri}
+                onChangeText={(v) => { setAvatarUri(v); setAvatarBase64(''); }}
+                placeholder="https://i.imgur.com/tu-foto.jpg"
+                placeholderTextColor={Colors.TEXT_MUTED}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+              />
+            </View>
           </View>
 
           {/* Display name input */}
@@ -169,9 +224,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarText: { color: Colors.TEXT_PRIMARY, fontSize: 24, fontWeight: '800' },
-  avatarInfo: { gap: 4 },
-  changePhotoLabel: { color: Colors.ACCENT_PRIMARY, fontSize: 14, fontWeight: '600' },
-  comingSoon: { color: Colors.TEXT_MUTED, fontSize: 12 },
+  avatarImg: { width: 60, height: 60, borderRadius: 30 },
+  avatarInfo: { flex: 1, gap: 6 },
+  avatarUrlInput: {
+    backgroundColor: Colors.BG_SECONDARY,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 12,
+    color: Colors.TEXT_PRIMARY,
+    borderWidth: 1,
+    borderColor: Colors.BORDER_COLOR,
+  },
+  avatarUrlHint: { color: Colors.TEXT_MUTED, fontSize: 11 },
+  pickImageBtn: {
+    backgroundColor: Colors.ACCENT_PRIMARY,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  pickImageText: { color: '#fff', fontSize: 13, fontWeight: '600' },
   label: {
     fontSize: 12,
     fontWeight: '600',
