@@ -48,9 +48,27 @@ interface Movie {
   thumbnailUrl?: string;
   posterUrl?: string;
   poster?: string;
+  image?: string;
+  imageUrl?: string;
+  imgUrl?: string;
+  url?: string;
   type?: string;
   year?: string | number;
+  [key: string]: any;
 }
+
+const getMovieImageUrl = (movie: any): string | null => {
+  return (
+    movie?.thumbnailUrl ||
+    movie?.posterUrl ||
+    movie?.poster ||
+    movie?.image ||
+    movie?.imageUrl ||
+    movie?.imgUrl ||
+    movie?.url ||
+    null
+  );
+};
 
 export default function PublicPerfilScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -71,18 +89,23 @@ export default function PublicPerfilScreen() {
     const contentId = item.id ?? item._id ?? item.contentId;
     if (!contentId) return item;
     try {
+      let result;
       if (item.type === 'series') {
         const res = await api.get(`/series/${contentId}`);
-        return res.data;
+        result = res.data;
+      } else {
+        try {
+          const res = await api.get(`/movies/${contentId}`);
+          result = res.data;
+        } catch {
+          const res = await api.get(`/series/${contentId}`);
+          result = res.data;
+        }
       }
-      try {
-        const res = await api.get(`/movies/${contentId}`);
-        return res.data;
-      } catch {
-        const res = await api.get(`/series/${contentId}`);
-        return res.data;
-      }
-    } catch { return item; }
+      return { ...item, ...result };
+    } catch {
+      return item;
+    }
   };
 
   const fetchData = useCallback(async () => {
@@ -100,7 +123,6 @@ export default function PublicPerfilScreen() {
       if (profileRes.status === 'fulfilled') {
         const data = profileRes.value.data;
         setProfile(data);
-        setIsFollowing(data.isFollowing ?? false);
       }
       if (favsRes.status === 'fulfilled') {
         const d = favsRes.value.data;
@@ -110,7 +132,15 @@ export default function PublicPerfilScreen() {
       }
       if (followersRes.status === 'fulfilled') {
         const d = followersRes.value.data;
-        setFollowersCount(Array.isArray(d) ? d.length : (d.count ?? d.total ?? 0));
+        const followersList = Array.isArray(d) ? d : (d.data ?? []);
+        setFollowersCount(followersList.length);
+
+        if (userId) {
+          const isUserFollowing = followersList.some((follower: any) =>
+            (follower._id ?? follower.id) === userId
+          );
+          setIsFollowing(isUserFollowing);
+        }
       }
       if (followingRes.status === 'fulfilled') {
         const d = followingRes.value.data;
@@ -125,7 +155,7 @@ export default function PublicPerfilScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [id]);
+  }, [id, userId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
   const onRefresh = () => { setRefreshing(true); fetchData(); };
@@ -133,17 +163,29 @@ export default function PublicPerfilScreen() {
   const handleFollow = async () => {
     if (!id || followLoading) return;
     setFollowLoading(true);
+    const wasFollowing = isFollowing;
+    const previousCount = followersCount;
+
     try {
       if (isFollowing) {
-        await api.post(`/users/${id}/unfollow`);
         setIsFollowing(false);
         setFollowersCount(prev => Math.max(0, prev - 1));
+        await api.post(`/users/${id}/unfollow`);
       } else {
-        await api.post(`/users/${id}/follow`);
         setIsFollowing(true);
         setFollowersCount(prev => prev + 1);
+        await api.post(`/users/${id}/follow`);
       }
-    } catch {}
+
+      const followersRes = await api.get(`/users/${id}/followers`);
+      const d = followersRes.data;
+      const newCount = Array.isArray(d) ? d.length : (d.count ?? d.total ?? 0);
+      setFollowersCount(newCount);
+    } catch (err: any) {
+      console.log('Follow error:', err.response?.status, JSON.stringify(err.response?.data));
+      setIsFollowing(wasFollowing);
+      setFollowersCount(previousCount);
+    }
     finally { setFollowLoading(false); }
   };
 
@@ -268,23 +310,26 @@ export default function PublicPerfilScreen() {
             <Text style={styles.emptyText}>Sin contenido</Text>
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {favorites.map((m, idx) => (
-                <TouchableOpacity
-                  key={m._id ?? m.id ?? idx.toString()}
-                  style={styles.posterCard}
-                  onPress={() => { const mid = m._id ?? m.id; if (mid) router.push(`/pelicula/${mid}` as any); }}
-                  activeOpacity={0.8}
-                >
-                  {m.thumbnailUrl ?? m.posterUrl ?? m.poster ? (
-                    <Image source={{ uri: (m.thumbnailUrl ?? m.posterUrl ?? m.poster)! }} style={styles.posterImg} contentFit="cover" />
-                  ) : (
-                    <View style={[styles.posterImg, styles.posterPlaceholder]}>
-                      <Ionicons name="film-outline" size={28} color={Colors.ACCENT_PRIMARY} />
-                    </View>
-                  )}
-                  <Text style={styles.posterTitle} numberOfLines={2}>{m.title}</Text>
-                </TouchableOpacity>
-              ))}
+              {favorites.map((m, idx) => {
+                const imageUrl = getMovieImageUrl(m);
+                return (
+                  <TouchableOpacity
+                    key={m._id ?? m.id ?? idx.toString()}
+                    style={styles.posterCard}
+                    onPress={() => { const mid = m._id ?? m.id; if (mid) router.push(`/pelicula/${mid}` as any); }}
+                    activeOpacity={0.8}
+                  >
+                    {imageUrl ? (
+                      <Image source={{ uri: imageUrl }} style={styles.posterImg} contentFit="cover" />
+                    ) : (
+                      <View style={[styles.posterImg, styles.posterPlaceholder]}>
+                        <Ionicons name="film-outline" size={28} color={Colors.ACCENT_PRIMARY} />
+                      </View>
+                    )}
+                    <Text style={styles.posterTitle} numberOfLines={2}>{m.title}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
           )}
         </View>
